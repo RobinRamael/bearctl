@@ -20,11 +20,12 @@ def main():
         i3status=I3StatusBlock(block_name="RedshiftService"),
     )
 
-    from pprint import pprint
+
     print(redshift_bear.dbus)
     # pprint(getattr(redshift_bear, "dbus").decode())
 
     redshift_bear.register(bus)
+    redshift_bear.start_updating()
 
     loop.run()
 

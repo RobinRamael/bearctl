@@ -1,3 +1,5 @@
+import threading
+import time
 from functools import wraps
 
 import lxml.builder
@@ -56,12 +58,15 @@ class Bear(metaclass=BearMeta):
         i3status: I3StatusBlock,
         name: str,
         servicectl: ServiceCtl,
+        delay: float = 1
     ):
         self.i3status = i3status
         self.servicectl = servicectl
         self.name = name
-        self.dbus = generate_dbus_xml("org.robinramael.bear.Redshift", self._dbus_methods)
-        # assert self.dbus == self.hop_dbus
+        self.dbus = generate_dbus_xml(
+            "org.robinramael.bear.Redshift", self._dbus_methods
+        )
+        self.delay = delay
 
     def update_label(self):
         status = self.servicectl.active_state
@@ -72,11 +77,23 @@ class Bear(metaclass=BearMeta):
         pass
 
     def register(self, bus):
-        # breakpoint()
-        bus.publish(f"org.robinramael.bear.{self.name}", ("/org/robinramael/bear/redshift", self, self.dbus))
+        bus.publish(
+            f"org.robinramael.bear.{self.name}",
+            ("/org/robinramael/bear/redshift", self, self.dbus),
+        )
 
-    # dbus = """<node><interface name="org.robinramael.bear.Redshift"><method name="Start"/><method name="Stop"/></interface></node>"""
+    def start_updating(self):
+        def update():
+            self.update_label()
 
+        def run_updates():
+            while True:
+                GLib.idle_add(update)
+                time.sleep(self.delay)
+
+        thread = threading.Thread(target=run_updates)
+        thread.daemon = True
+        thread.start()
 
 
 class ServiceBear(Bear):

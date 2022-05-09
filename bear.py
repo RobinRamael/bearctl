@@ -58,45 +58,42 @@ class Bear(metaclass=BearMeta):
         i3status: I3StatusBlock,
         name: str,
         servicectl: ServiceCtl,
-        delay: float = 1
     ):
         self.i3status = i3status
         self.servicectl = servicectl
         self.name = name
-        self.dbus = generate_dbus_xml(
-            "org.robinramael.bear.Redshift", self._dbus_methods
+        # todo: dasbus can do this for us probably
+        self.__dbus_xml__ = generate_dbus_xml(
+            f"org.robinramael.bear.{self.dbus_name}", self._dbus_methods
         )
-        self.delay = delay
+
+    def on_property_change(self, name, changed_props, invalidated_props):
+        if "ActiveState" in changed_props:
+            print(changed_props["ActiveState"])
+            self.update_label()
 
     def update_label(self):
         status = self.servicectl.active_state
+        sub_status = self.servicectl.sub_state
 
-        self.i3status.set_i3_block(status, "backlight_full", "Good")
+        self.i3status.set_i3_block(f"{status} ({sub_status})", "backlight_full", "Good")
 
-    def on_property_change(self):
-        pass
+    @property
+    def dbus_name(self):
+        return f"{snake2camel(self.name)}Bear"
 
     def register(self, bus):
-        bus.publish(
-            f"org.robinramael.bear.{self.name}",
-            ("/org/robinramael/bear/redshift", self, self.dbus),
-        )
+        bus.publish_object(
+            f"/org/robinramael/bear/{self.dbus_name}", self)
 
-    def start_updating(self):
-        def update():
-            self.update_label()
+        bus.register_service(f"org.robinramael.bear.{self.dbus_name}")
 
-        def run_updates():
-            while True:
-                GLib.idle_add(update)
-                time.sleep(self.delay)
+        self.servicectl.register_listener(self.on_property_change)
 
-        thread = threading.Thread(target=run_updates)
-        thread.daemon = True
-        thread.start()
 
 
 class ServiceBear(Bear):
+
     @dbus_method
     def start(self):
         self.servicectl.start()
@@ -104,3 +101,7 @@ class ServiceBear(Bear):
     @dbus_method
     def stop(self):
         self.servicectl.stop()
+
+    @dbus_method
+    def pause(self):
+        print("pause!")

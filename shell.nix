@@ -11,6 +11,7 @@ let
       ipython
       pydbus
       click
+      dasbus
     '';
   };
 in pkgs.mkShell {

@@ -1,7 +1,7 @@
 from functools import wraps
 
-import pydbus
-from gi.repository import GLib
+from dasbus.connection import SessionMessageBus
+from dasbus.loop import EventLoop
 
 from bear import ServiceBear
 from i3status import I3StatusBlock
@@ -9,10 +9,10 @@ from systemd import ServiceCtl, SystemdManager
 
 
 def main():
-    bus = pydbus.SessionBus()
+    bus = SessionMessageBus()
     systemd_manager = SystemdManager(bus=bus)
 
-    loop = GLib.MainLoop()
+    loop = EventLoop()
 
     redshift_bear = ServiceBear(
         name="redshift",
@@ -20,14 +20,11 @@ def main():
         i3status=I3StatusBlock(block_name="RedshiftService"),
     )
 
-
-    print(redshift_bear.dbus)
-    # pprint(getattr(redshift_bear, "dbus").decode())
-
     redshift_bear.register(bus)
-    redshift_bear.start_updating()
+
 
     loop.run()
 
 
-main()
+if __name__ == "__main__":
+    main()

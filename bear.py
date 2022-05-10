@@ -1,3 +1,4 @@
+import logging
 import threading
 import time
 from functools import wraps
@@ -6,9 +7,11 @@ import lxml.builder
 import lxml.etree
 from gi.repository import GLib
 
-from i3status import I3StatusBlock
 from systemd import ServiceCtl, SystemdManager
 from utils import snake2camel
+from views import BearView, I3StatusBlock, Printer
+
+logger = logging.getLogger(__name__)
 
 
 def generate_dbus_xml(interface_name: str, methods: dict):
@@ -50,58 +53,80 @@ def dbus_method(func):
     return decorated
 
 
-class Bear(metaclass=BearMeta):
-    """"""
+class BearClient:
+    def __init__(self, proxy):
+        self.proxy = proxy
 
-    def __init__(
-        self,
-        i3status: I3StatusBlock,
-        name: str,
-        servicectl: ServiceCtl,
-    ):
-        self.i3status = i3status
-        self.servicectl = servicectl
+    def call(self, name: str):
+        return getattr(self.proxy, snake2camel(name))()
+
+
+class Bear(metaclass=BearMeta):
+    _dbus_methods = {}  # should always be overwritten in BearMeta
+
+    def __init__(self, bus, name: str, view: BearView, icon: str):
+        self.bus = bus
+        self.view = view
         self.name = name
+        self.icon = icon
         # todo: dasbus can do this for us probably
         self.__dbus_xml__ = generate_dbus_xml(
             f"org.robinramael.bear.{self.dbus_name}", self._dbus_methods
         )
 
-    def on_property_change(self, name, changed_props, invalidated_props):
-        if "ActiveState" in changed_props:
-            print(changed_props["ActiveState"])
-            self.update_label()
-
-    def update_label(self):
-        status = self.servicectl.active_state
-        sub_status = self.servicectl.sub_state
-
-        self.i3status.set_i3_block(f"{status} ({sub_status})", "backlight_full", "Good")
+    def update_view(self, msg, icon, status):
+        self.view.update(msg, icon, status)
 
     @property
     def dbus_name(self):
         return f"{snake2camel(self.name)}Bear"
 
-    def register(self, bus):
-        bus.publish_object(
-            f"/org/robinramael/bear/{self.dbus_name}", self)
+    def register(self):
+        self.bus.publish_object(f"/org/robinramael/bear/{self.dbus_name}", self)
+        self.bus.register_service(f"org.robinramael.bear.{self.dbus_name}")
 
-        bus.register_service(f"org.robinramael.bear.{self.dbus_name}")
+    def get_client(self):
+        proxy = self.bus.get_proxy(
+            (f"org.robinramael.bear.{self.dbus_name}"),
+            f"/org/robinramael/bear/{self.dbus_name}",
+        )
 
-        self.servicectl.register_listener(self.on_property_change)
-
+        return BearClient(proxy)
 
 
 class ServiceBear(Bear):
+    def __init__(self, *args, servicectl: ServiceCtl, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.servicectl = servicectl
+
+    def on_property_change(self, name, changed_props, _):
+        if "ActiveState" in changed_props:
+            logger.info(
+                f"Received changed ActiveState, is {changed_props['ActiveState']}"
+            )
+            self.update_label()
+
+    def register(self):
+        super().register()
+        self.servicectl.register_listener(self.on_property_change)
+
+    def update_label(self):
+        status = self.servicectl.active_state
+        sub_status = self.servicectl.sub_state
+
+        self.update_view(f"{status} ({sub_status})", self.icon, "Good")
 
     @dbus_method
     def start(self):
+        logger.info(f"Starting {self.dbus_name}")
         self.servicectl.start()
 
     @dbus_method
     def stop(self):
+        logger.info(f"Stopping {self.dbus_name}")
         self.servicectl.stop()
 
     @dbus_method
     def pause(self):
-        print("pause!")
+        logger.info(f"Pausing {self.dbus_name}")
+        raise NotImplementedError

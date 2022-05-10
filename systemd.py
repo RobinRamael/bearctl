@@ -1,11 +1,16 @@
 from dasbus.connection import SessionMessageBus
+from dasbus.error import DBusError
 from gi.repository import GLib
 
 SYSTEMD_BUS_NAME = "org.freedesktop.systemd1"
 SYSTEMD_PATH = "/org/freedesktop/systemd1"
 SYSTEMD_MANAGER = "org.freedesktop.systemd1.Manager"
 
+import logging
+
 from utils import snake2camel
+
+logger = logging.getLogger(__name__)
 
 
 class SystemdManager:
@@ -15,7 +20,7 @@ class SystemdManager:
 
     def get_unit(self, service_name):
         path = self.manager.GetUnit(service_name)
-        print(path)
+        logger.info(f"Got unit with path {path}")
         return self.bus.get_proxy(SYSTEMD_BUS_NAME, path)
 
 
@@ -31,24 +36,34 @@ class ServiceCtl:
         return self.unit.GetAll("org.freedesktop.systemd1.Service")
 
     def register_listener(self, func):
-        if not self.property_listeners:
+        try:
             self.systemd.manager.Subscribe()
+        except DBusError as e:
+            if not e.dbus_name == "org.freedesktop.systemd1.AlreadySubscribed":
+                raise e
+
+        if not self.property_listeners:
             self.unit.PropertiesChanged.connect(self.on_properties_changed)
 
         self.property_listeners.append(func)
 
     def on_properties_changed(self, *args, **kwargs):
+        logger.info("properties changed, notifying listeners")
         for listener in self.property_listeners:
             listener(*args, **kwargs)
 
+        logger.info("notified all listeners")
+
     def __getattr__(self, name):
         try:
-            return self.unit.Get("org.freedesktop.systemd1.Unit", snake2camel(name)).unpack()
+            return self.unit.Get(
+                "org.freedesktop.systemd1.Unit", snake2camel(name)
+            ).unpack()
         except GLib.GError:
             raise AttributeError
 
     def start(self):
-        print("start!")
+        self.unit.Start("replace")
 
     def stop(self):
-        print("stop!")
+        self.unit.Stop("replace")

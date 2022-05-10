@@ -1,14 +1,14 @@
+import logging
+
 from dasbus.connection import SessionMessageBus
 from dasbus.error import DBusError
 from gi.repository import GLib
 
+from .utils import snake2camel
+
 SYSTEMD_BUS_NAME = "org.freedesktop.systemd1"
 SYSTEMD_PATH = "/org/freedesktop/systemd1"
 SYSTEMD_MANAGER = "org.freedesktop.systemd1.Manager"
-
-import logging
-
-from utils import snake2camel
 
 logger = logging.getLogger(__name__)
 

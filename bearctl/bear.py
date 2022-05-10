@@ -7,9 +7,9 @@ import lxml.builder
 import lxml.etree
 from gi.repository import GLib
 
-from systemd import ServiceCtl, SystemdManager
-from utils import snake2camel
-from views import BearView, I3StatusBlock, Printer
+from .systemd import ServiceCtl, SystemdManager
+from .utils import snake2camel
+from .views import BearView, I3StatusBlock, Printer
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +126,13 @@ class ServiceBear(Bear):
         logger.info(f"Stopping {self.dbus_name}")
         self.servicectl.stop()
 
+class PauseableServiceBear(ServiceBear):
+
     @dbus_method
     def pause(self):
-        logger.info(f"Pausing {self.dbus_name}")
-        raise NotImplementedError
+        self.stop()
+
+        def func():
+            self.start()
+
+

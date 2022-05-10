@@ -20,6 +20,7 @@ in pkgs.mkShell {
     pkgs.python39Packages.pulsectl
     pkgs.python39Packages.pygobject3
     pkgs.python39Packages.lxml
+    pkgs.python39Packages.pytest
 
   ];
   PYTHONBREAKPOINT = "ipdb.set_trace";

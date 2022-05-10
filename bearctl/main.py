@@ -3,6 +3,7 @@ from functools import wraps
 import click
 from dasbus.connection import SessionMessageBus
 from dasbus.loop import EventLoop
+from gi.repository import GLib
 
 from bear import ServiceBear
 from systemd import ServiceCtl, SystemdManager
@@ -57,7 +58,7 @@ def cli():
 @cli.command()
 def service():
 
-    loop = EventLoop()
+    loop = GLib.MainLoop()
 
     for bear in build_bears():
         bear.register()

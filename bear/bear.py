@@ -1,43 +1,57 @@
+import inspect
 import logging
 import threading
 import time
+from collections import ChainMap
 from functools import wraps
 
-import lxml.builder
-import lxml.etree
+from dasbus.typing import get_dbus_type
+from dasbus.xml import XMLGenerator as DBusXML
 from gi.repository import GLib
 
-from .systemd import ServiceCtl, SystemdManager
-from .utils import snake2camel
-from .views import BearView, I3StatusBlock, Printer
+from bear.utils import snake2camel
+from bear.views import BearView
 
 logger = logging.getLogger(__name__)
 
 
 def generate_dbus_xml(interface_name: str, methods: dict):
-    E = lxml.builder.ElementMaker()
 
-    method_nodes = []
+    root = DBusXML.create_node()
+    interface = DBusXML.create_interface(interface_name)
 
-    for name, method in methods.items():
-        method_nodes.append(E.method(name=name.capitalize()))
+    DBusXML.add_child(root, interface)
 
-    node = E.node(E.interface(*method_nodes, name=interface_name))
-    return lxml.etree.tostring(node).decode()
+    for method_name, method in methods.items():
+        method_node = DBusXML.create_method(method_name)
+        for param_name, param in list(inspect.signature(method).parameters.items())[1:]:
+            DBusXML.add_child(
+                method_node,
+                DBusXML.create_parameter(
+                    param_name, get_dbus_type(param.annotation), "in"
+                ),
+            )
+        DBusXML.add_child(interface, method_node)
+
+    return DBusXML.element_to_xml(root)
+
 
 
 class BearMeta(type):
     def __new__(cls, cls_name, bases, attrs):
-        dbus_methods = {}
+        dbus_methods_in_cls = {}
         for key, attr in attrs.items():
             if callable(attr) and getattr(attr, "is_dbus_method", False):
                 new_method_name = snake2camel(key)
-                dbus_methods[new_method_name] = attr
+                dbus_methods_in_cls[new_method_name] = attr
 
-        for method_name, method in dbus_methods.items():
+        for method_name, method in dbus_methods_in_cls.items():
             attrs[method_name] = method
 
-        attrs["_dbus_methods"] = dbus_methods
+        all_dbus_methods = ChainMap(
+            *[c._dbus_methods for c in bases], dbus_methods_in_cls
+        )
+        attrs["_dbus_methods"] = all_dbus_methods
 
         obj = super().__new__(cls, cls_name, bases, attrs)
         return obj
@@ -92,47 +106,3 @@ class Bear(metaclass=BearMeta):
         )
 
         return BearClient(proxy)
-
-
-class ServiceBear(Bear):
-    def __init__(self, *args, servicectl: ServiceCtl, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.servicectl = servicectl
-
-    def on_property_change(self, name, changed_props, _):
-        if "ActiveState" in changed_props:
-            logger.info(
-                f"Received changed ActiveState, is {changed_props['ActiveState']}"
-            )
-            self.update_label()
-
-    def register(self):
-        super().register()
-        self.servicectl.register_listener(self.on_property_change)
-
-    def update_label(self):
-        status = self.servicectl.active_state
-        sub_status = self.servicectl.sub_state
-
-        self.update_view(f"{status} ({sub_status})", self.icon, "Good")
-
-    @dbus_method
-    def start(self):
-        logger.info(f"Starting {self.dbus_name}")
-        self.servicectl.start()
-
-    @dbus_method
-    def stop(self):
-        logger.info(f"Stopping {self.dbus_name}")
-        self.servicectl.stop()
-
-class PauseableServiceBear(ServiceBear):
-
-    @dbus_method
-    def pause(self):
-        self.stop()
-
-        def func():
-            self.start()
-
-

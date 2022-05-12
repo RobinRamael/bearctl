@@ -1,13 +1,12 @@
 from functools import wraps
 
 import click
+from bear.systemd import (PauseableServiceBear, ServiceBear, ServiceCtl,
+                          SystemdManager)
+from bear.views import I3StatusBlock, Printer
 from dasbus.connection import SessionMessageBus
 from dasbus.loop import EventLoop
 from gi.repository import GLib
-
-from bear import ServiceBear
-from systemd import ServiceCtl, SystemdManager
-from views import I3StatusBlock, Printer
 
 FOLDER_ICON = "\uf07b"
 EYE_ICON = "\uf06e"
@@ -25,7 +24,7 @@ def build_bears():
     systemd_manager = SystemdManager(bus=bus)
 
     bears = [
-        ServiceBear(
+        PauseableServiceBear(
             bus=bus,
             name="redshift",
             servicectl=ServiceCtl(

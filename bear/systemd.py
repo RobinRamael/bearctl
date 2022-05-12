@@ -1,10 +1,13 @@
 import logging
+import threading
+import time
 
 from dasbus.connection import SessionMessageBus
 from dasbus.error import DBusError
 from gi.repository import GLib
 
-from .utils import snake2camel
+from bear.bear import Bear, dbus_method
+from bear.utils import snake2camel
 
 SYSTEMD_BUS_NAME = "org.freedesktop.systemd1"
 SYSTEMD_PATH = "/org/freedesktop/systemd1"
@@ -67,3 +70,48 @@ class ServiceCtl:
 
     def stop(self):
         self.unit.Stop("replace")
+
+
+class ServiceBear(Bear):
+    def __init__(self, *args, servicectl: ServiceCtl, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.servicectl = servicectl
+
+    def on_property_change(self, name, changed_props, _):
+        if "ActiveState" in changed_props:
+            logger.info(
+                f"Received changed ActiveState, is {changed_props['ActiveState']}"
+            )
+            self.update_label()
+
+    def register(self):
+        super().register()
+        self.servicectl.register_listener(self.on_property_change)
+
+    def update_label(self):
+        status = self.servicectl.active_state
+        sub_status = self.servicectl.sub_state
+
+        self.update_view(f"{status} ({sub_status})", self.icon, "Good")
+
+    @dbus_method
+    def start(self):
+        logger.info(f"Starting {self.dbus_name}")
+        self.servicectl.start()
+
+    @dbus_method
+    def stop(self):
+        logger.info(f"Stopping {self.dbus_name}")
+        self.servicectl.stop()
+
+
+class PauseableServiceBear(ServiceBear):
+    @dbus_method
+    def pause(self, seconds: int):
+        self.stop()
+
+        def func():
+            time.sleep(seconds)
+            self.start()
+
+        threading.Thread(daemon=True, target=func).run()

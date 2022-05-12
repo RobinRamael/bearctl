@@ -2,7 +2,7 @@ from unittest.mock import Mock
 
 from lxml import etree, objectify
 
-from bearctl.bear import Bear, ServiceBear, dbus_method
+from bear.bear import Bear, dbus_method
 
 
 def assert_xml_equivalent(result, expected):
@@ -31,6 +31,26 @@ def test_xml():
             <interface name="org.robinramael.bear.TestBear">
                 <method name="Homti"/>
                 <method name="Tom"/>
+            </interface>
+        </node>
+    """
+    assert_xml_equivalent(bear.__dbus_xml__, expected_xml)
+
+def test_xml_with_args():
+    class TestBear(Bear):
+        @dbus_method
+        def homti(self, n: int, name: str):
+            pass
+
+    bear = TestBear(bus=Mock(), name="test", view=Mock(), icon="bear")
+    print(bear.__dbus_xml__)
+    expected_xml = """
+        <node>
+            <interface name="org.robinramael.bear.TestBear">
+                <method name="Homti">
+                    <arg name="n" type="i" direction="in" />
+                    <arg name="name" type="s" direction="in" />
+                </method>
             </interface>
         </node>
     """

@@ -28,10 +28,9 @@ class SystemdManager:
 
 
 class ServiceCtl:
-    def __init__(self, service_name, systemd=None, bus=None):
-        self.bus = bus or SessionMessageBus()
+    def __init__(self, service_name, systemd=None):
         self.service_name = service_name
-        self.systemd = systemd or SystemdManager(self.bus)
+        self.systemd = systemd or SystemdManager(SessionMessageBus())
         self.property_listeners = []
         self.unit = self.systemd.get_unit(self.service_name)
 

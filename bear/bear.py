@@ -36,7 +36,6 @@ def generate_dbus_xml(interface_name: str, methods: dict):
     return DBusXML.element_to_xml(root)
 
 
-
 class BearMeta(type):
     def __new__(cls, cls_name, bases, attrs):
         dbus_methods_in_cls = {}

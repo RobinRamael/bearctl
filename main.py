@@ -1,12 +1,13 @@
 from functools import wraps
 
 import click
-from bear.systemd import (PauseableServiceBear, ServiceBear, ServiceCtl,
-                          SystemdManager)
-from bear.views import I3StatusBlock, Printer
-from dasbus.connection import SessionMessageBus
+from dasbus.connection import SessionMessageBus, SystemMessageBus
 from dasbus.loop import EventLoop
 from gi.repository import GLib
+
+from bear.bluetooth import BluetoothBear, DasBusBluetoothDevice
+from bear.systemd import PauseableServiceBear, ServiceBear, ServiceCtl, SystemdManager
+from bear.views import I3StatusBlock, Printer
 
 FOLDER_ICON = "\uf07b"
 EYE_ICON = "\uf06e"
@@ -20,30 +21,43 @@ logger = logging.getLogger()
 
 
 def build_bears():
-    bus = SessionMessageBus()
-    systemd_manager = SystemdManager(bus=bus)
+    session_bus = SessionMessageBus()
+    system_bus = SystemMessageBus()
+
+    sys_systemd_manager = SystemdManager(bus=system_bus)
+    bluetooth_service = ServiceCtl("bluetooth.service", systemd=sys_systemd_manager)
 
     bears = [
-        PauseableServiceBear(
-            bus=bus,
-            name="redshift",
-            servicectl=ServiceCtl(
-                service_name="redshift.service", systemd=systemd_manager
+        BluetoothBear(
+            device=DasBusBluetoothDevice(
+                mac_address="38:18:4C:E9:00:D8", bus=system_bus
             ),
-            # i3status=I3StatusBlock(block_name="RedshiftService", session_bus=bus),
-            view=Printer(),
-            icon=FOLDER_ICON,
-        ),
-        ServiceBear(
-            bus=bus,
-            name="dropbox",
-            servicectl=ServiceCtl(
-                service_name="dropbox.service", systemd=systemd_manager
-            ),
-            # i3status=I3StatusBlock(block_name="DropboxService", session_bus=bus),
-            view=Printer(),
-            icon=FOLDER_ICON,
-        ),
+            service=bluetooth_service,
+            bus=session_bus,
+            name="bluetooth",
+            view=I3StatusBlock(block_name="BluetoothBlock", session_bus=session_bus),
+            icon="bt",
+        )
+        # PauseableServiceBear(
+        #     bus=bus,
+        #     name="redshift",
+        #     servicectl=ServiceCtl(
+        #         service_name="redshift.service", systemd=systemd_manager
+        #     ),
+        #     # i3status=I3StatusBlock(block_name="RedshiftService", session_bus=bus),
+        #     view=Printer(),
+        #     icon=FOLDER_ICON,
+        # ),
+        # ServiceBear(
+        #     bus=bus,
+        #     name="dropbox",
+        #     servicectl=ServiceCtl(
+        #         service_name="dropbox.service", systemd=systemd_manager
+        #     ),
+        #     # i3status=I3StatusBlock(block_name="DropboxService", session_bus=bus),
+        #     view=Printer(),
+        #     icon=FOLDER_ICON,
+        # ),
     ]
 
     return bears
@@ -72,7 +86,7 @@ def service():
 def client(name, command):
 
     try:
-         bear = next(b for b in build_bears() if b.name == name)
+        bear = next(b for b in build_bears() if b.name == name)
     except StopIteration:
         print("who?")
         exit(1)
@@ -80,8 +94,6 @@ def client(name, command):
     client = bear.get_client()
 
     client.call(command)
-
-
 
 
 if __name__ == "__main__":

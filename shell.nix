@@ -9,9 +9,9 @@ let
       ipdb
       pexpect
       ipython
-      pydbus
       click
       dasbus
+      pulsectl
     '';
   };
 in pkgs.mkShell {

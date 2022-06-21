@@ -29,6 +29,7 @@ def build_bears():
     sys_systemd_manager = SystemdManager(bus=system_bus)
     bluetooth_service = ServiceCtl("bluetooth.service", systemd=sys_systemd_manager)
 
+    # boom_mac =  "C0:28:8D:D7:12:87"
     bears = [
         BluetoothBear(
             device=DasBusBluetoothDevice(
@@ -77,6 +78,7 @@ def service():
 
     for bear in build_bears():
         bear.register()
+        bear.initialize_view()
 
     logger.info("Running loop")
     loop.run()

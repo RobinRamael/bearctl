@@ -90,6 +90,9 @@ class Bear(metaclass=BearMeta):
     def update_view(self, msg, icon, status):
         self.view.update(msg, icon, status)
 
+    def initialize_view(self):
+        pass
+
     @property
     def dbus_name(self):
         return f"{snake2camel(self.name)}Bear"

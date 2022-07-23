@@ -1,16 +1,14 @@
 import logging
-import multiprocessing
-import queue
 import sys
 import threading
+import time
 
-from dasbus.connection import AddressedMessageBus
 from dasbus.error import DBusError
 from gi.repository import GObject
-from pulsectl import Pulse, PulseLoopStop
-from pulsectl.pulsectl import PulseEventMaskEnum, PulseEventTypeEnum
+from pipewire_python.controller import Controller as PipewireController
 
 from bear.bear import Bear, dbus_method
+from bear.utils import HiddenPrints
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
@@ -30,13 +28,9 @@ class DasBusBluetoothDevice:
             BLUEZ_DBUS_NAME, self._as_object_name(mac_address)
         )
 
-        self.new_sinks_queue = multiprocessing.Queue()
-        self.remove_sinks_queue = multiprocessing.Queue()
-        self.pulse_thread = PulseThread(self.new_sinks_queue, self.remove_sinks_queue)
-
         self._sink_index = None
 
-        self.pulse = Pulse("bear")
+        self.pipewire = PipewireController()
 
         self.new_sink_listeners = []
         self.removed_sink_listeners = []
@@ -59,7 +53,20 @@ class DasBusBluetoothDevice:
         return self.device.Get(DEVICE_INTERFACE, "Connected").get_boolean()
 
     def check_sink(self):
-        return any(sink.name == self.sink_name for sink in self.pulse.sink_list())
+
+        with HiddenPrints():
+            devs = self.pipewire.get_list_interfaces(
+                type_interfaces="Device",
+                filtered_by_type=True,
+            )
+
+        bluetooth_device_macs = [
+            d["properties"]["device.string"]
+            for d in devs.values()
+            if d["properties"]["device.bus"] == "bluetooth"
+        ]
+
+        return any(mac == self.mac_address for mac in bluetooth_device_macs)
 
     def connect(self):
         self.device.Connect()
@@ -73,104 +80,33 @@ class DasBusBluetoothDevice:
     def register_property_listener(self, listener):
         self.device.PropertiesChanged.connect(listener)
 
-    def _on_new_sink_event(self, *args):
-        try:
-            new_event = self.new_sinks_queue.get_nowait()
-        except queue.Empty:
-            return True
-        else:
-            logger.info(f"A sink with index {new_event.index} was added")
 
-            new_sink = self.pulse.sink_info(new_event.index)
-            if new_sink.name == self.sink_name:
-                self._sink_index = new_sink.index
-                logger.info(f"The sink for device {self.mac_address} was added!")
-                for listener in self.new_sink_listeners:
-                    listener(new_sink)
+class PipewirePollThread(threading.Thread):
+    def __init__(self, device, success_handler, fail_handler, tries=3, interval=0.1):
+        super().__init__()
+        self.device = device
+        self.success_handler = success_handler
+        self.fail_handler = fail_handler
+        self.tries = tries
+        self.interval = interval
 
-        # we return true to indicate to glib that this callback has to be called
-        # again.
-        return True
+    def run(self):
+        logger.info(f"Started polling for sink add")
+        n = 0
+        while self.tries > n:
+            if self.device.check_sink():
+                logger.info(f"Found sink after {n + 1} tries")
+                self.success_handler()
+                return
 
-    def _on_removed_sink_event(self, *args):
-        try:
-            removed_event = self.remove_sinks_queue.get_nowait()
-        except queue.Empty:
-            return True
-        else:
-            logger.info(f"A sink with index {removed_event.index} was removed")
+            n += 1
+            time.sleep(self.interval)
 
-            if removed_event.index == self._sink_index and self._sink_index is not None:
-                self._sink_index = None
-
-                logger.info(f"The sink for device {self.mac_address} was removed!")
-
-                for listener in self.removed_sink_listeners:
-                    listener()
-
-        # we return true to indicate to glib that this callback has to be called
-        # again.
-        return True
-
-    def register_new_sink_listener(self, listener):
-        self.pulse_thread.start()
-
-        # this is some magic to integrate pulseaudio's event stuff with glib.
-        # Whenever there's new data in the queue (put there by the above started
-        # thread) the on_<new|removed>_sink_event handler is called in the glib
-        # main loop.
-        # see
-        # https://github.com/mk-fg/python-pulse-control/issues/11#issuecomment-261543399
-        # using multiprocessing.Queue is probably notthe most efficient approach
-        # but it works so hey
-        GObject.io_add_watch(
-            self.new_sinks_queue._reader,
-            GObject.IO_IN | GObject.IO_PRI,
-            self._on_new_sink_event,
-        )
-        self.pulse_thread.ensure_started()
-
-        self.new_sink_listeners.append(listener)
-
-    def register_removed_sink_listener(self, listener):
-
-        GObject.io_add_watch(
-            self.remove_sinks_queue._reader,
-            GObject.IO_IN | GObject.IO_PRI,
-            self._on_removed_sink_event,
-        )
-
-        self.pulse_thread.ensure_started()
-        self.removed_sink_listeners.append(listener)
+        self.fail_handler()
 
 
 class NoSinkAdded(Exception):
     pass
-
-
-class PulseThread(threading.Thread):
-    def __init__(self, new_queue, remove_queue):
-        threading.Thread.__init__(self)
-        self.new_queue = new_queue
-        self.remove_queue = remove_queue
-        self.daemon = True
-
-    def ensure_started(self):
-        if not self.is_alive():
-            self.start()
-
-    def on_event(self, event):
-        logger.debug(f"PulseAudio event rcvd: {event}")
-        if event.t == PulseEventTypeEnum.new:
-            self.new_queue.put(event)
-        elif event.t == PulseEventTypeEnum.remove:
-            self.remove_queue.put(event)
-
-    def run(self):
-        pulse = Pulse("bear-sink-listener")
-        pulse.event_mask_set(PulseEventMaskEnum.sink)
-        pulse.event_callback_set(self.on_event)
-        pulse.event_listen()
 
 
 class BluetoothBear(Bear):
@@ -183,11 +119,11 @@ class BluetoothBear(Bear):
         self.bluetooth_connected = False
         self.sink_added = False
 
+        self.pipewire_poll_thread = None
+
     def register(self):
         super().register()
         self.device.register_property_listener(self.on_bluetooth_property_change)
-        self.device.register_new_sink_listener(self.on_new_sink_event)
-        self.device.register_removed_sink_listener(self.on_removed_sink_event)
 
     def show_fully_connected(self):
         self.view.update(self.device.alias, "headphones", "Good")
@@ -197,15 +133,6 @@ class BluetoothBear(Bear):
 
     def show_disconnected(self):
         self.view.update("", "bluetooth", "Idle")
-
-    def on_new_sink_event(self, _):
-        self.sink_added = True
-        self.show_fully_connected()
-
-    def on_removed_sink_event(self):
-        self.sink_added = False
-        if self.bluetooth_connected:
-            self.show_half_connected()
 
     def on_bluetooth_property_change(self, name, changed_props, _):
         try:
@@ -217,13 +144,31 @@ class BluetoothBear(Bear):
         if is_connected:
             self.bluetooth_connected = True
             if self.sink_added:
+                logger.info(f"Immediately found sink")
                 self.show_fully_connected()
             else:
                 self.show_half_connected()
+                self.poll_for_sink()
 
         else:
             self.bluetooth_connected = False
             self.show_disconnected()
+
+    def poll_for_sink(self):
+        if not self.pipewire_poll_thread:
+            self.pipewire_poll_thread = PipewirePollThread(
+                self.device, self.on_sink_added, self.on_sink_failed
+            )
+            self.pipewire_poll_thread.start()
+
+    def on_sink_added(self):
+        self.pipewire_poll_thread = None
+        self.show_fully_connected()
+
+    def on_sink_failed(self):
+        logger.error("Could not find sink")
+        self.pipewire_poll_thread = None
+        self.show_half_connected()
 
     def initialize_view(self):
         if self.device.check_connection():

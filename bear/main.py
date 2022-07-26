@@ -6,7 +6,8 @@ from dasbus.loop import EventLoop
 from gi.repository import GLib
 
 from bear.bluetooth import BluetoothBear, DasBusBluetoothDevice
-from bear.systemd import PauseableServiceBear, ServiceBear, ServiceCtl, SystemdManager
+from bear.systemd import (PauseableServiceBear, ServiceBear, ServiceCtl,
+                          SystemdManager)
 from bear.views import I3StatusBlock, Printer
 
 FOLDER_ICON = "\uf07b"

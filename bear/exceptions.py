@@ -1,0 +1,2 @@
+class DoubleBearException(Exception):
+    pass

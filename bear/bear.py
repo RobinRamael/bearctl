@@ -9,6 +9,7 @@ from dasbus.typing import get_dbus_type
 from dasbus.xml import XMLGenerator as DBusXML
 from gi.repository import GLib
 
+from bear.exceptions import DoubleBearException
 from bear.utils import snake2camel
 from bear.views import BearView
 
@@ -99,7 +100,13 @@ class Bear(metaclass=BearMeta):
 
     def register(self):
         self.bus.publish_object(f"/org/robinramael/bear/{self.dbus_name}", self)
-        self.bus.register_service(f"org.robinramael.bear.{self.dbus_name}")
+        path = f"org.robinramael.bear.{self.dbus_name}"
+        try:
+            self.bus.register_service(path)
+        except ConnectionError:
+            raise DoubleBearException(
+                f"Failed to register path {path}. Is another instance of bearctl running?"
+            )
 
     def get_client(self):
         proxy = self.bus.get_proxy(

@@ -194,3 +194,10 @@ class BluetoothBear(Bear):
     def disconnect(self):
         self.view.update("...", "bluetooth", "Warning")
         self.device.disconnect()
+
+    @dbus_method
+    def toggle(self):
+        if self.device.check_connection():
+            self.disconnect()
+        else:
+            self.connect()

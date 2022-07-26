@@ -36,8 +36,8 @@ def build_bears():
             ),
             service=bluetooth_service,
             bus=session_bus,
-            name="bluetooth",
-            view=I3StatusBlock(block_name="BluetoothBlock", session_bus=session_bus),
+            name="bluephones",
+            view=I3StatusBlock(block_name="BluephonesBlock", session_bus=session_bus),
             icon="bt",
         )
         # PauseableServiceBear(

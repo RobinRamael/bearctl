@@ -14,10 +14,10 @@ let
       pygobject
       pipewire_python
     '';
+    postFixup = ''
+      wrapProgram $out/bin/bearctl --prefix PATH : ${
+        pkgs.lib.makeBinPath (with pkgs; [ pkgs.pipewire ])
+      }
+    '';
   };
-in pkgs.writeShellScriptBin "bearctl" ''
-  PATH=$PATH:${
-    pkgs.lib.makeBinPath [ pkgs.pipewire ]
-  } exec ${bearCtl}/bin/bearctl "$@"
-''
-
+in bearCtl

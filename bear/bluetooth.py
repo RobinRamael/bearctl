@@ -182,7 +182,7 @@ class BluetoothBear(Bear):
         else:
             self.show_disconnected()
 
-    @dbus_method
+    @dbus_method()
     def connect(self):
         self.view.update("...", "bluetooth", BlockState.warning)
         try:
@@ -191,12 +191,12 @@ class BluetoothBear(Bear):
             logger.exception(e)
             self.view.update("err", "bluetooth", BlockState.error)
 
-    @dbus_method
+    @dbus_method()
     def disconnect(self):
         self.view.update("...", "bluetooth", BlockState.warning)
         self.device.disconnect()
 
-    @dbus_method
+    @dbus_method()
     def toggle(self):
         if self.device.check_connection():
             self.disconnect()

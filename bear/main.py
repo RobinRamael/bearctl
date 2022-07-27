@@ -28,6 +28,8 @@ def build_bears():
     sys_systemd_manager = SystemdManager(bus=system_bus)
     bluetooth_service = ServiceCtl("bluetooth.service", systemd=sys_systemd_manager)
 
+    ses_systemd_manager = SystemdManager(bus=session_bus)
+
     # boom_mac =  "C0:28:8D:D7:12:87"
     bears = [
         BluetoothBear(
@@ -39,27 +41,27 @@ def build_bears():
             name="bluephones",
             view=I3StatusBlock(block_name="BluephonesBlock", session_bus=session_bus),
             icon="bluetooth",
-        )
-        # PauseableServiceBear(
-        #     bus=bus,
-        #     name="redshift",
-        #     servicectl=ServiceCtl(
-        #         service_name="redshift.service", systemd=systemd_manager
-        #     ),
-        #     # i3status=I3StatusBlock(block_name="RedshiftService", session_bus=bus),
-        #     view=Printer(),
-        #     icon=FOLDER_ICON,
-        # ),
-        # ServiceBear(
-        #     bus=bus,
-        #     name="dropbox",
-        #     servicectl=ServiceCtl(
-        #         service_name="dropbox.service", systemd=systemd_manager
-        #     ),
-        #     # i3status=I3StatusBlock(block_name="DropboxService", session_bus=bus),
-        #     view=Printer(),
-        #     icon=FOLDER_ICON,
-        # ),
+        ),
+        PauseableServiceBear(
+            bus=session_bus,
+            name="redshift",
+            servicectl=ServiceCtl(
+                service_name="redshift.service", systemd=ses_systemd_manager
+            ),
+            view=I3StatusBlock(block_name="RedshiftBlock", session_bus=session_bus),
+            # view=Printer(),
+            icon=EYE_ICON,
+        ),
+        ServiceBear(
+            bus=session_bus,
+            name="dropbox",
+            servicectl=ServiceCtl(
+                service_name="dropbox.service", systemd=ses_systemd_manager
+            ),
+            view=I3StatusBlock(block_name="DropboxBlock", session_bus=session_bus),
+            # view=Printer(),
+            icon=FOLDER_ICON,
+        ),
     ]
 
     return bears
@@ -86,7 +88,8 @@ def service():
 @cli.command()
 @click.argument("name")
 @click.argument("command")
-def client(name, command):
+@click.argument("command_args", nargs=-1)
+def client(name, command, command_args):
 
     try:
         bear = next(b for b in build_bears() if b.name == name)
@@ -96,7 +99,7 @@ def client(name, command):
 
     client = bear.get_client()
 
-    client.call(command)
+    client.call(command, command_args)
 
 
 def main():

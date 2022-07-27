@@ -57,22 +57,40 @@ class BearMeta(type):
         return obj
 
 
-def dbus_method(func):
-    func.is_dbus_method = True
+def dbus_method(*args):
+    def decorator(func):
+        func.is_dbus_method = True
+        func.dbus_args = args
 
-    @wraps(func)
-    def decorated(*args, **kwargs):
-        func(*args, **kwargs)
+        @wraps(func)
+        def decorated(*args, **kwargs):
+            func(*args, **kwargs)
 
-    return decorated
+        return decorated
+
+    return decorator
 
 
 class BearClient:
-    def __init__(self, proxy):
+    def __init__(self, bear, proxy):
+        self.bear = bear
         self.proxy = proxy
 
-    def call(self, name: str):
-        return getattr(self.proxy, snake2camel(name))()
+    def call(self, name: str, args):
+
+        bear_method = getattr(self.bear, snake2camel(name))
+
+        assert len(bear_method.dbus_args) == len(args), "incorrect n of arguments"
+
+        transformed_args = []
+
+        for arg, transformer in zip(args, bear_method.dbus_args):
+            transformed_args.append(transformer(arg))
+
+        if args:
+            logger.info(f"transformed {args} to {transformed_args}")
+
+        return getattr(self.proxy, snake2camel(name))(*transformed_args)
 
 
 class Bear(metaclass=BearMeta):
@@ -114,4 +132,4 @@ class Bear(metaclass=BearMeta):
             f"/org/robinramael/bear/{self.dbus_name}",
         )
 
-        return BearClient(proxy)
+        return BearClient(self, proxy)

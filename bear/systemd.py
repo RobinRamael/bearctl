@@ -8,12 +8,15 @@ from gi.repository import GLib
 
 from bear.bear import Bear, dbus_method
 from bear.utils import snake2camel
+from bear.views import BlockState
 
 SYSTEMD_BUS_NAME = "org.freedesktop.systemd1"
 SYSTEMD_PATH = "/org/freedesktop/systemd1"
 SYSTEMD_MANAGER = "org.freedesktop.systemd1.Manager"
 
 logger = logging.getLogger(__name__)
+
+PAUSE_ICON = "\uf04c"
 
 
 class SystemdManager:
@@ -50,11 +53,11 @@ class ServiceCtl:
         self.property_listeners.append(func)
 
     def on_properties_changed(self, *args, **kwargs):
-        logger.info("properties changed, notifying listeners")
+        logger.debug("properties changed, notifying listeners")
         for listener in self.property_listeners:
             listener(*args, **kwargs)
 
-        logger.info("notified all listeners")
+        logger.debug("notified all listeners")
 
     def __getattr__(self, name):
         try:
@@ -63,6 +66,10 @@ class ServiceCtl:
             ).unpack()
         except GLib.GError:
             raise AttributeError
+
+    @property
+    def stopped(self):
+        return self.active_state != "active"
 
     def start(self):
         self.unit.Start("replace")
@@ -79,7 +86,7 @@ class ServiceBear(Bear):
     def on_property_change(self, name, changed_props, _):
         if "ActiveState" in changed_props:
             logger.info(
-                f"Received changed ActiveState, is {changed_props['ActiveState']}"
+                f"Received changed ActiveState in {self.name}, is {changed_props['ActiveState']}"
             )
             self.update_label()
 
@@ -91,26 +98,57 @@ class ServiceBear(Bear):
         status = self.servicectl.active_state
         sub_status = self.servicectl.sub_state
 
-        self.update_view(f"{status} ({sub_status})", self.icon, "Good")
+        logger.debug(
+            f"updating label for {self.name} for service state {status}/{sub_status}"
+        )
 
-    @dbus_method
+        if status == "active":
+            if sub_status == "running":
+                self.view.update_simple_icon(self.icon, BlockState.good)
+            else:
+                self.view.update("f{self.icon} {sub_status}", None, BlockState.warning)
+
+        else:
+            self.view.update_simple_icon(self.icon, BlockState.error)
+
+    def initialize_view(self):
+        self.update_label()
+
+    @dbus_method()
     def start(self):
-        logger.info(f"Starting {self.dbus_name}")
         self.servicectl.start()
+        logger.info(f"Started {self.name} service")
 
-    @dbus_method
+    @dbus_method()
     def stop(self):
-        logger.info(f"Stopping {self.dbus_name}")
+        logger.debug(f"Stopping {self.name} service")
         self.servicectl.stop()
+        logger.info(f"Stopped {self.name} service")
 
 
 class PauseableServiceBear(ServiceBear):
-    @dbus_method
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.paused = False
+
+    @dbus_method(int)
     def pause(self, seconds: int):
+        if self.servicectl.stopped:
+            return
+
+        self.paused = True
         self.stop()
 
         def func():
             time.sleep(seconds)
+            self.paused = False
             self.start()
 
-        threading.Thread(daemon=True, target=func).run()
+        threading.Thread(daemon=True, target=func).start()
+        logger.info(f"Paused {self.name} for {seconds} seconds")
+
+    def update_label(self):
+        if self.paused:
+            self.view.update_simple_icon(PAUSE_ICON, BlockState.warning)
+        else:
+            super().update_label()

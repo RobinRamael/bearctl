@@ -9,6 +9,7 @@ from pipewire_python.controller import Controller as PipewireController
 
 from bear.bear import Bear, dbus_method
 from bear.utils import HiddenPrints
+from bear.views import BlockState
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
@@ -126,13 +127,13 @@ class BluetoothBear(Bear):
         self.device.register_property_listener(self.on_bluetooth_property_change)
 
     def show_fully_connected(self):
-        self.view.update(self.device.alias, "headphones", "Good")
+        self.view.update(self.device.alias, "headphones", BlockState.good)
 
     def show_half_connected(self):
-        self.view.update(self.device.alias, "bluetooth", "Warning")
+        self.view.update(self.device.alias, "bluetooth", BlockState.warning)
 
     def show_disconnected(self):
-        self.view.update("", "bluetooth", "Idle")
+        self.view.update("", "bluetooth", BlockState.idle)
 
     def on_bluetooth_property_change(self, name, changed_props, _):
         try:
@@ -144,7 +145,7 @@ class BluetoothBear(Bear):
         if is_connected:
             self.bluetooth_connected = True
             if self.sink_added:
-                logger.info(f"Immediately found sink")
+                logger.info("Immediately found sink")
                 self.show_fully_connected()
             else:
                 self.show_half_connected()
@@ -183,16 +184,16 @@ class BluetoothBear(Bear):
 
     @dbus_method
     def connect(self):
-        self.view.update("...", "bluetooth", "Warning")
+        self.view.update("...", "bluetooth", BlockState.warning)
         try:
             self.device.connect()
         except DBusError as e:
             logger.exception(e)
-            self.view.update("err", "bluetooth", "Error")
+            self.view.update("err", "bluetooth", BlockState.error)
 
     @dbus_method
     def disconnect(self):
-        self.view.update("...", "bluetooth", "Warning")
+        self.view.update("...", "bluetooth", BlockState.warning)
         self.device.disconnect()
 
     @dbus_method

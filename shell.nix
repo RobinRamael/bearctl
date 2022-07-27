@@ -14,5 +14,6 @@ mach-nix.mkPythonShell {
     pipewire_python
     ipython
     ipdb
+    black
   '';
 }

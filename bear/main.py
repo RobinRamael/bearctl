@@ -6,8 +6,7 @@ from dasbus.loop import EventLoop
 from gi.repository import GLib
 
 from bear.bluetooth import BluetoothBear, DasBusBluetoothDevice
-from bear.systemd import (PauseableServiceBear, ServiceBear, ServiceCtl,
-                          SystemdManager)
+from bear.systemd import PauseableServiceBear, ServiceBear, ServiceCtl, SystemdManager
 from bear.views import I3StatusBlock, Printer
 
 FOLDER_ICON = "\uf07b"
@@ -79,7 +78,14 @@ def service():
 
     for bear in build_bears():
         bear.register()
-        bear.initialize_view()
+
+        try:
+            bear.initialize_view()
+        except Exception as e:
+            logger.critical(f"Failed to initalize view for {bear.name}: {e}")
+            continue
+
+        logger.info(f"Sucessfully initialized {bear.name} bear")
 
     logger.info("Running loop")
     loop.run()

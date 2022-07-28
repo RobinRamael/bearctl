@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from typing import Union
 
 from dasbus.connection import SessionMessageBus
+from dasbus.error import DBusError
 
 
 class BearView(ABC):
@@ -14,7 +15,7 @@ class BearView(ABC):
         self.update(icon, None, state)
 
 
-I3_STATUS_NAME = "rs.i3status"
+POSSIBLE_I3_STATUS_NAMES = ["rs.i3status", "rs.i3status.bottom", "rs.i3status.top"]
 
 
 logger = logging.getLogger(__name__)
@@ -31,30 +32,38 @@ class I3StatusBlock(BearView):
     def __init__(self, block_name, session_bus=None):
         self.block_name = block_name
         self.bus = session_bus or SessionMessageBus()
+        self._block = None
+
+    @property
+    def block(self):
+        if not self._block:
+            self._block = self.get_block()
+
+        return self._block
 
     def get_block(self):
-        try:
-            block = self.bus.get_proxy(I3_STATUS_NAME, f"/{self.block_name}")
-            logger.debug(f"Got {self.block_name} block proxy")
-            return block
-        except:
-            logger.error(
-                f"Could not find proxy for block {self.block_name}, not updating."
-            )
-            raise
+        for name in POSSIBLE_I3_STATUS_NAMES:
+            block = self.bus.get_proxy(name, f"/{self.block_name}")
+
+            try:
+                # block is only checked when we try to find one of its attrs
+                assert block.SetText
+                logger.debug(f"Got {self.block_name} block proxy")
+                return block
+            except DBusError:
+                continue
+
+        raise Exception(
+            f"Unable to find {self.block_name} anywhere in any of {POSSIBLE_I3_STATUS_NAMES}"
+        )
 
     def update(self, message: str, icon: str, state: str):
 
-        try:
-            block = self.get_block()
-        except:
-            return
-
-        block.SetText(f"{message}", f"{message}")
-        block.SetState(state)
+        self.block.SetText(f"{message}", f"{message}")
+        self.block.SetState(state)
 
         if icon:
-            block.SetIcon(icon)
+            self.block.SetIcon(icon)
 
         return
 

@@ -4,6 +4,9 @@ from typing import Union
 
 from dasbus.connection import SessionMessageBus
 from dasbus.error import DBusError
+from gi.repository import GLib
+
+BLINK_LENGTH_SECONDS = 1
 
 
 class BearView(ABC):
@@ -13,6 +16,26 @@ class BearView(ABC):
 
     def update_simple_icon(self, icon, state):
         self.update(icon, None, state)
+
+    def blink_simple_icon(
+        self,
+        first_icon,
+        first_state,
+        final_icon,
+        final_state,
+        interval=BLINK_LENGTH_SECONDS,
+    ):
+        self.update_simple_icon(first_icon, first_state)
+
+        def final_update():
+            self.update_simple_icon(final_icon, final_state)
+            return False  # only execute this once (see timeout_add docs)
+
+        GLib.timeout_add_seconds(
+            priority=GLib.PRIORITY_DEFAULT,
+            interval=interval,
+            function=final_update,
+        )
 
 
 POSSIBLE_I3_STATUS_NAMES = ["rs.i3status", "rs.i3status.bottom", "rs.i3status.top"]

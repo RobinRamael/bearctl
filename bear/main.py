@@ -1,3 +1,6 @@
+import logging
+import os
+import sys
 from functools import wraps
 
 import click
@@ -6,16 +9,15 @@ from dasbus.loop import EventLoop
 from gi.repository import GLib
 
 from bear.bluetooth import BluetoothBear, DasBusBluetoothDevice
-from bear.systemd import PauseableServiceBear, ServiceBear, ServiceCtl, SystemdManager
+from bear.icons import Icons
+from bear.lorri import LorriBear
+from bear.systemd import (PauseableServiceBear, ServiceBear, ServiceCtl,
+                          SystemdManager)
 from bear.views import I3StatusBlock, Printer
 
-FOLDER_ICON = "\uf07b"
-EYE_ICON = "\uf06e"
+logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
 import logging
-import sys
-
-logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
 logger = logging.getLogger()
 
@@ -29,37 +31,42 @@ def build_bears():
 
     ses_systemd_manager = SystemdManager(bus=session_bus)
 
-    # boom_mac =  "C0:28:8D:D7:12:87"
     bears = [
+        LorriBear(
+            bus=session_bus,
+            name="lorri",
+            icon=Icons.TROWEL,
+            view=I3StatusBlock(block_name="LorriBlock", session_bus=session_bus),
+        ),
         BluetoothBear(
+            name="bluephones",
+            bus=session_bus,
+            service=bluetooth_service,
             device=DasBusBluetoothDevice(
                 mac_address="38:18:4C:E9:00:D8", bus=system_bus
             ),
-            service=bluetooth_service,
-            bus=session_bus,
-            name="bluephones",
             view=I3StatusBlock(block_name="BluephonesBlock", session_bus=session_bus),
             icon="bluetooth",
         ),
         PauseableServiceBear(
-            bus=session_bus,
             name="redshift",
+            bus=session_bus,
             servicectl=ServiceCtl(
                 service_name="redshift.service", systemd=ses_systemd_manager
             ),
             view=I3StatusBlock(block_name="RedshiftBlock", session_bus=session_bus),
             # view=Printer(),
-            icon=EYE_ICON,
+            icon=Icons.EYE,
         ),
         ServiceBear(
-            bus=session_bus,
             name="dropbox",
+            bus=session_bus,
             servicectl=ServiceCtl(
                 service_name="dropbox.service", systemd=ses_systemd_manager
             ),
             view=I3StatusBlock(block_name="DropboxBlock", session_bus=session_bus),
             # view=Printer(),
-            icon=FOLDER_ICON,
+            icon=Icons.FOLDER,
         ),
     ]
 

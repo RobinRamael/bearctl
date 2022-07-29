@@ -16,7 +16,7 @@ let
     '';
     postFixup = ''
       wrapProgram $out/bin/bearctl --prefix PATH : ${
-        pkgs.lib.makeBinPath (with pkgs; [ pkgs.pipewire ])
+        pkgs.lib.makeBinPath (with pkgs; [ pkgs.pipewire pkgs.lorri])
       }
     '';
   };

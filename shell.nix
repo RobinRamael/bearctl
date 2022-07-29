@@ -15,5 +15,6 @@ mach-nix.mkPythonShell {
     ipython
     ipdb
     black
+    pylint
   '';
 }

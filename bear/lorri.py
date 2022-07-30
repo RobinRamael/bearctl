@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 # the lorri stream-events command also send the last few
 # (currently three but who knows?) events immediately. We want to
 # ignore those. Since it's unlikely that the user will trigger a
-# lorri event with 0.5 seconds, that seems like a good choice.
-INITIAL_HOLDOFF_TIME = 0.5
+# lorri event within this time, that seems like a good choice.
+INITIAL_HOLDOFF_TIME = 1
 
 
 class LorriBear(LabelBear):
@@ -28,6 +28,8 @@ class LorriBear(LabelBear):
         self._last_events = {}
 
     def register(self):
+        super().register()
+
         def loop():
             proc = subprocess.Popen(
                 ["lorri", "internal", "stream-events"], stdout=subprocess.PIPE

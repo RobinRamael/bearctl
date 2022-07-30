@@ -126,26 +126,60 @@ class ServiceLabelBear(LabelBear):
         logger.info(f"Stopped {self.name} service")
 
 
+class RevivingThread(threading.Thread):
+    def __init__(self, servicectl, seconds):
+        super().__init__(daemon=True)
+        self.seconds = seconds
+        self.cancel_event = threading.Event()
+        self.servicectl = servicectl
+
+    def run(self):
+        time.sleep(self.seconds)
+        logger.debug("Reviving thread woke up")
+        if not self.cancel_event.is_set():
+            logger.debug("Restarting after pause")
+            self.servicectl.start()
+        else:
+            logger.debug("Reviving thread was cancelled, not restarting the service.")
+
+
 class PauseableServiceLabelBear(ServiceLabelBear):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.paused = False
+        self.reviving_thread = None
 
     @dbus_method(int)
     def pause(self, seconds: int):
         if self.servicectl.stopped:
             return
 
-        self.paused = True
         self.stop()
 
-        def func():
-            time.sleep(seconds)
-            self.paused = False
-            self.start()
+        self.reviving_thread = RevivingThread(self.servicectl, seconds)
+        self.reviving_thread.start()
+        self.paused = True
 
-        threading.Thread(daemon=True, target=func).start()
-        logger.info(f"Paused {self.name} for {seconds} seconds")
+        logger.debug(f"Paused {self.name} for {seconds} seconds")
+
+    @dbus_method(int)
+    def start(self):
+        super().start()
+
+        self.paused = False
+
+        if self.reviving_thread:
+            logger.debug("Cancelling reviving thread.")
+            self.reviving_thread.cancel_event.set()
+
+    @dbus_method(int)
+    def toggle_pause(self, seconds: int):
+        logger.debug("toggle_pause call received")
+        if self.servicectl.stopped:
+            self.start()
+            logger.info(f"service is stopped pause is {self.paused}, unpauseing.")
+        else:
+            self.pause(seconds)
 
     def update_label(self):
         if self.paused:

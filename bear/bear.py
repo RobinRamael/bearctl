@@ -11,7 +11,7 @@ from gi.repository import GLib
 
 from bear.exceptions import DoubleBearException
 from bear.utils import snake2camel
-from bear.views import BearView
+from bear.views import BearLabel
 
 logger = logging.getLogger(__name__)
 
@@ -96,21 +96,13 @@ class BearClient:
 class Bear(metaclass=BearMeta):
     _dbus_methods = {}  # should always be overwritten in BearMeta
 
-    def __init__(self, bus, name: str, view: BearView, icon: str):
+    def __init__(self, bus, name: str):
         self.bus = bus
-        self.view = view
         self.name = name
-        self.icon = icon
         # todo: dasbus can do this for us probably
         self.__dbus_xml__ = generate_dbus_xml(
             f"org.robinramael.bear.{self.dbus_name}", self._dbus_methods
         )
-
-    def update_view(self, msg, icon, status):
-        self.view.update(msg, icon, status)
-
-    def initialize_view(self):
-        pass
 
     @property
     def dbus_name(self):
@@ -133,3 +125,23 @@ class Bear(metaclass=BearMeta):
         )
 
         return BearClient(self, proxy)
+
+
+class LabelBear(Bear):
+    def __init__(self, bus, name, icon, view):
+        super().__init__(bus, name)
+        self.view = view
+        self.icon = icon
+
+    def update_view(self, msg, icon, status):
+        self.view.update(msg, icon, status)
+
+    def register(self):
+        super().register()
+        try:
+            self.initialize_view()
+        except Exception as e:
+            logger.critical(f"Failed to initalize view for {self.name}: {e}")
+
+    def initialize_view(self):
+        pass

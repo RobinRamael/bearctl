@@ -8,16 +8,16 @@ from dasbus.connection import SessionMessageBus, SystemMessageBus
 from dasbus.loop import EventLoop
 from gi.repository import GLib
 
+from bear.battery import Battery, BatteryBear
 from bear.bluetooth import BluetoothBear, DasBusBluetoothDevice
 from bear.icons import Icons
 from bear.lorri import LorriBear
-from bear.systemd import (PauseableServiceBear, ServiceBear, ServiceCtl,
-                          SystemdManager)
-from bear.views import I3StatusBlock, Printer
+from bear.systemd import (PauseableServiceLabelBear, ServiceCtl,
+                          ServiceLabelBear, SystemdManager)
+from bear.views import I3StatusBlock, NotificationCtl
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
-import logging
 
 logger = logging.getLogger()
 
@@ -32,6 +32,9 @@ def build_bears():
     ses_systemd_manager = SystemdManager(bus=session_bus)
 
     bears = [
+        BatteryBear(
+            bus=session_bus, name="battery", battery=Battery(system_bus), nag_lobound=10
+        ),
         LorriBear(
             bus=session_bus,
             name="lorri",
@@ -48,7 +51,7 @@ def build_bears():
             view=I3StatusBlock(block_name="BluephonesBlock", session_bus=session_bus),
             icon="bluetooth",
         ),
-        PauseableServiceBear(
+        PauseableServiceLabelBear(
             name="redshift",
             bus=session_bus,
             servicectl=ServiceCtl(
@@ -58,7 +61,7 @@ def build_bears():
             # view=Printer(),
             icon=Icons.EYE,
         ),
-        ServiceBear(
+        ServiceLabelBear(
             name="dropbox",
             bus=session_bus,
             servicectl=ServiceCtl(
@@ -85,12 +88,6 @@ def service():
 
     for bear in build_bears():
         bear.register()
-
-        try:
-            bear.initialize_view()
-        except Exception as e:
-            logger.critical(f"Failed to initalize view for {bear.name}: {e}")
-            continue
 
         logger.info(f"Sucessfully initialized {bear.name} bear")
 

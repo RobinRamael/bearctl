@@ -7,7 +7,7 @@ from dasbus.error import DBusError
 from gi.repository import GObject
 from pipewire_python.controller import Controller as PipewireController
 
-from bear.bear import Bear, dbus_method
+from bear.bear import LabelBear, dbus_method
 from bear.utils import HiddenPrints
 from bear.views import BlockState
 
@@ -32,9 +32,6 @@ class DasBusBluetoothDevice:
         self._sink_index = None
 
         self.pipewire = PipewireController()
-
-        self.new_sink_listeners = []
-        self.removed_sink_listeners = []
 
     def _as_object_name(self, mac_address: str):
         return f"/org/bluez/hci0/dev_{mac_address.replace(':', '_')}"
@@ -110,7 +107,7 @@ class NoSinkAdded(Exception):
     pass
 
 
-class BluetoothBear(Bear):
+class BluetoothBear(LabelBear):
     def __init__(self, service, device, *args, **kwargs):
         super().__init__(*args, **kwargs)
 

@@ -7,9 +7,9 @@ import time
 from dasbus.connection import SessionMessageBus
 from gi.repository import GLib
 
-from bear.bear import Bear
+from bear.bear import LabelBear
 from bear.icons import Icons
-from bear.views import BlockState, Printer
+from bear.views import BlockState
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 INITIAL_HOLDOFF_TIME = 0.5
 
 
-class LorriBear(Bear):
+class LorriBear(LabelBear):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 

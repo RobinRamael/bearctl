@@ -6,7 +6,7 @@ from dasbus.connection import SessionMessageBus
 from dasbus.error import DBusError
 from gi.repository import GLib
 
-from bear.bear import Bear, dbus_method
+from bear.bear import LabelBear, dbus_method
 from bear.utils import snake2camel
 from bear.views import BlockState
 
@@ -78,7 +78,7 @@ class ServiceCtl:
         self.unit.Stop("replace")
 
 
-class ServiceBear(Bear):
+class ServiceLabelBear(LabelBear):
     def __init__(self, *args, servicectl: ServiceCtl, **kwargs):
         super().__init__(*args, **kwargs)
         self.servicectl = servicectl
@@ -126,7 +126,7 @@ class ServiceBear(Bear):
         logger.info(f"Stopped {self.name} service")
 
 
-class PauseableServiceBear(ServiceBear):
+class PauseableServiceLabelBear(ServiceLabelBear):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.paused = False

@@ -13,6 +13,7 @@ let
       click
       pygobject
       pipewire_python
+      notify2
     '';
     postFixup = ''
       wrapProgram $out/bin/bearctl --prefix PATH : ${

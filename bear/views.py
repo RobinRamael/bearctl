@@ -9,7 +9,7 @@ from gi.repository import GLib
 BLINK_LENGTH_SECONDS = 1
 
 
-class BearView(ABC):
+class BearLabel(ABC):
     @abstractmethod
     def update(self, message: str, icon: Union[str, None], state: str):
         raise NotImplementedError
@@ -51,7 +51,7 @@ class BlockState:
     idle = "idle"
 
 
-class I3StatusBlock(BearView):
+class I3StatusBlock(BearLabel):
     def __init__(self, block_name, session_bus=None):
         self.block_name = block_name
         self.bus = session_bus or SessionMessageBus()
@@ -88,9 +88,35 @@ class I3StatusBlock(BearView):
         if icon:
             self.block.SetIcon(icon)
 
-        return
 
-
-class Printer(BearView):
+class LabelPrinter(BearLabel):
     def update(self, message, icon, state):
         print(f"msg: {message}, icon: {icon}, state: {state}")
+
+
+class Null(BearLabel):
+    def update(self, message, icon, state):
+        pass
+
+
+class NotificationCtl:
+    def __init__(self, session_bus):
+        self.notifications = session_bus.get_proxy(
+            "org.freedesktop.Notifications", "/org/freedesktop/Notifications"
+        )
+
+    def notify(self, title, msg):
+
+        self.notifications.Notify(
+            "",
+            0,
+            "face-smile",
+            title,
+            msg,
+            ["hop", "la"],
+            {},
+            0,
+        )
+
+    def register_notification_callback(self, f):
+        self.notifications.NotificationClosed(f)

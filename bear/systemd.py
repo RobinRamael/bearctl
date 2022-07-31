@@ -181,6 +181,9 @@ class PauseableServiceLabelBear(ServiceLabelBear):
         else:
             self.pause(seconds)
 
+    def on_left_click(self):
+        self.toggle_pause(3600)
+
     def update_label(self):
         if self.paused:
             self.view.update_simple_icon(PAUSE_ICON, BlockState.warning)

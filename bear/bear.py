@@ -143,5 +143,27 @@ class LabelBear(Bear):
         except Exception as e:
             logger.critical(f"Failed to initalize view for {self.name}: {e}")
 
+    @dbus_method(str)
+    def action(self, name: str):
+        if name == "right_click":
+            self.on_right_click()
+        elif name == "left_click":
+            self.on_left_click()
+        elif name == "left_click":
+            self.on_left_click()
+        elif name == "double_left":
+            self.on_double_left_click()
+        else:
+            raise Exception(f"Bear {self.name} rcvd unknown action {name}")
+
+    def on_right_click(self):
+        pass
+
+    def on_left_click(self):
+        pass
+
+    def on_double_left_click(self):
+        pass
+
     def initialize_view(self):
         pass

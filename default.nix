@@ -1,24 +1,7 @@
-{ pkgs ? import <nixpkgs> { } }:
-let
-  mach-nix = import (builtins.fetchGit {
-    url = "https://github.com/DavHau/mach-nix";
-    ref = "refs/tags/3.5.0";
-  }) { };
-  bearCtl = mach-nix.buildPythonApplication {
-    pname = "bearctl";
-    src = ./.;
-    version = "0.1.0";
-    requirements = ''
-      dasbus
-      click
-      pygobject
-      pipewire_python
-      notify2
-    '';
-    postFixup = ''
-      wrapProgram $out/bin/bearctl --prefix PATH : ${
-        pkgs.lib.makeBinPath (with pkgs; [ pkgs.pipewire pkgs.lorri])
-      }
-    '';
-  };
-in bearCtl
+(import (
+  fetchTarball {
+    url = "https://github.com/edolstra/flake-compat/archive/99f1c2157fba4bfe6211a321fd0ee43199025dbf.tar.gz";
+    sha256 = "0x2jn3vrawwv9xp15674wjz9pixwjyj3j771izayl962zziivbx2"; }
+) {
+  src =  ./.;
+}).defaultNix

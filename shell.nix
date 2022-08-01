@@ -1,20 +1,7 @@
-
-{ pkgs ? import <nixpkgs> { } }:
-let
-  mach-nix = import (builtins.fetchGit {
-    url = "https://github.com/DavHau/mach-nix";
-    ref = "refs/tags/3.5.0";
-  }) {};
-in
-mach-nix.mkPythonShell {
-  requirements = ''
-    dasbus
-    click
-    pygobject
-    pipewire_python
-    ipython
-    ipdb
-    black
-    pylint
-  '';
-}
+(import (
+  fetchTarball {
+    url = "https://github.com/edolstra/flake-compat/archive/99f1c2157fba4bfe6211a321fd0ee43199025dbf.tar.gz";
+    sha256 = "0x2jn3vrawwv9xp15674wjz9pixwjyj3j771izayl962zziivbx2"; }
+) {
+  src =  ./.;
+}).shellNix

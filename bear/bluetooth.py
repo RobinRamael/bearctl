@@ -19,6 +19,7 @@ logger = logging.getLogger()
 DEVICE_INTERFACE = "org.bluez.Device1"
 PROPERTIES_INTERFACE = "org.freedesktop.DBus.Properties"
 BLUEZ_DBUS_NAME = "org.bluez"
+ADAPTER_PATH = "/org/bluez/hci0"
 
 
 class DasBusBluetoothDevice:
@@ -35,6 +36,10 @@ class DasBusBluetoothDevice:
 
     def _as_object_name(self, mac_address: str):
         return f"/org/bluez/hci0/dev_{mac_address.replace(':', '_')}"
+
+    @property
+    def object_path(self):
+        return self._as_object_name(self.mac_address)
 
     @property
     def sink_name(self):
@@ -75,8 +80,26 @@ class DasBusBluetoothDevice:
     def disconnect(self):
         self.device.Disconnect()
 
+    def pair(self):
+        self.device.Pair()
+
     def register_property_listener(self, listener):
         self.device.PropertiesChanged.connect(listener)
+
+
+class BluezAdapter:
+    def __init__(self, bus):
+        self.bus = bus
+        self.adapter = self.bus.get_proxy(BLUEZ_DBUS_NAME, ADAPTER_PATH)
+
+    def remove(self, dev):
+        self.adapter.RemoveDevice(dev.object_path)
+
+    def start_scan(self):
+        self.adapter.StartDiscovery()
+
+    def stop_scan(self):
+        self.adapter.StopDiscovery()
 
 
 class PipewirePollThread(threading.Thread):
@@ -108,11 +131,13 @@ class NoSinkAdded(Exception):
 
 
 class BluetoothBear(LabelBear):
-    def __init__(self, service, device, *args, **kwargs):
+    def __init__(self, service, device, adapter, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.service = service
         self.device = device
+
+        self.adapter = adapter
 
         self.bluetooth_connected = False
         self.sink_added = False
@@ -181,6 +206,10 @@ class BluetoothBear(LabelBear):
 
     @dbus_method()
     def connect(self):
+        if self.device.check_connection():
+            logger.info("Already connected.")
+            return
+
         self.view.update("...", "bluetooth", BlockState.warning)
         try:
             self.device.connect()
@@ -199,3 +228,62 @@ class BluetoothBear(LabelBear):
             self.disconnect()
         else:
             self.connect()
+
+    @dbus_method()
+    def repair(self):
+        self.view.update("repairing (1)", "bluetooth", BlockState.warning)
+        try:
+            if self.device.check_connection():
+                self.disconnect()
+
+        except DBusError as e:
+            logger.exception(e)
+
+        try:
+            self.adapter.remove(self.device)
+            logger.info(f"Removed device {self.device.mac_address}")
+        except DBusError as e:
+            logger.exception(e)
+
+        try:
+            self.adapter.start_scan()
+            logger.info(f"Started scanning")
+        except DBusError as e:
+            if e.dbus_name == "org.freedesktop.DBus.Error.InProgress":
+                logger.info("Already scanning...")
+            else:
+                logger.info(e.__dict__)
+                logger.exception(e)
+
+        for i in range(1, 21):
+
+            time.sleep(3)
+
+            if i > 3:
+                self.view.update(
+                    f"is device peering? ({i})", "bluetooth", BlockState.error
+                )
+            else:
+
+                self.view.update(f"repairing ({i})", "bluetooth", BlockState.warning)
+
+            try:
+                new_dev = DasBusBluetoothDevice(
+                    self.device.mac_address, self.device.bus
+                )
+                logger.info(f"Looking for {self.device.mac_address}... ({i})")
+                new_dev.get_info()
+                self.device = new_dev
+                break
+            except DBusError as e:
+                if e.dbus_name != "org.freedesktop.DBus.Error.UnknownObject":
+                    logger.exception(e)
+                continue
+        else:
+            self.view.update("Repair failed", "bluetooth", BlockState.error)
+            logger.error("Unable to find device after {i} tries... Aborting.")
+            return
+
+        self.device.pair()
+        self.device.connect()
+        self.adapter.stop_scan()

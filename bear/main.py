@@ -9,7 +9,7 @@ from dasbus.loop import EventLoop
 from gi.repository import GLib
 
 from bear.battery import Battery, BatteryBear
-from bear.bluetooth import BluetoothBear, DasBusBluetoothDevice
+from bear.bluetooth import BluetoothBear, BluezAdapter, DasBusBluetoothDevice
 from bear.icons import Icons
 from bear.lorri import LorriBear
 from bear.systemd import (PauseableServiceLabelBear, ServiceCtl,
@@ -48,6 +48,7 @@ def build_bears():
             device=DasBusBluetoothDevice(
                 mac_address="38:18:4C:E9:00:D8", bus=system_bus
             ),
+            adapter=BluezAdapter(bus=system_bus),
             view=I3StatusBlock(block_name="BluephonesBlock", session_bus=session_bus),
             icon="bluetooth",
         ),

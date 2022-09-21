@@ -58,6 +58,10 @@ class BearMeta(type):
 
 
 def dbus_method(*args):
+
+    if len(args) == 1 and callable(args[0]):
+        logger.warning("Did you call the dbus_args decorator correctly?")
+
     def decorator(func):
         func.is_dbus_method = True
         func.dbus_args = args
@@ -88,7 +92,7 @@ class BearClient:
             transformed_args.append(transformer(arg))
 
         if args:
-            logger.info(f"transformed {args} to {transformed_args}")
+            logger.info(f"transformed args {args} to {transformed_args}")
 
         return getattr(self.proxy, snake2camel(name))(*transformed_args)
 
@@ -109,10 +113,13 @@ class Bear(metaclass=BearMeta):
         return f"{snake2camel(self.name)}Bear"
 
     def register(self):
-        self.bus.publish_object(f"/org/robinramael/bear/{self.dbus_name}", self)
+        obj_name = f"/org/robinramael/bear/{self.dbus_name}"
+        self.bus.publish_object(obj_name, self)
+        logger.debug(f"published object {obj_name}")
         path = f"org.robinramael.bear.{self.dbus_name}"
         try:
             self.bus.register_service(path)
+            logger.debug(f"registered service {path}")
         except ConnectionError:
             raise DoubleBearException(
                 f"Failed to register path {path}. Is another instance of bearctl running?"
@@ -145,6 +152,7 @@ class LabelBear(Bear):
 
     @dbus_method(str)
     def action(self, name: str):
+        logger.info(f"Called {name} action on {self.name}")
         if name == "right_click":
             self.on_right_click()
         elif name == "left_click":

@@ -40,7 +40,7 @@
             requirements = bearRequirements;
             postFixup = ''
               wrapProgram $out/bin/bearctl --prefix PATH : ${
-                pkgs.lib.makeBinPath (with pkgs; [ pkgs.pipewire pkgs.lorri ])
+                pkgs.lib.makeBinPath (with pkgs; [ pkgs.pipewire pkgs.lorri pkgs.xorg.xset ])
               }
             '';
           };

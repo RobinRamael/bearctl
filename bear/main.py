@@ -10,6 +10,7 @@ from gi.repository import GLib
 
 from bear.battery import Battery, BatteryBear
 from bear.bluetooth import BluetoothBear, BluezAdapter, DasBusBluetoothDevice
+from bear.dpms import DPMSBear
 from bear.icons import Icons
 from bear.lorri import LorriBear
 from bear.systemd import (PauseableServiceLabelBear, ServiceCtl,
@@ -71,6 +72,12 @@ def build_bears():
             view=I3StatusBlock(block_name="DropboxBlock", session_bus=session_bus),
             # view=Printer(),
             icon=Icons.FOLDER,
+        ),
+        DPMSBear(
+            name="dpms",
+            bus=session_bus,
+            view=I3StatusBlock(block_name="DPMSBlock", session_bus=session_bus),
+            icon=Icons.EYE,
         ),
     ]
 

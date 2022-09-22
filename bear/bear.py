@@ -59,7 +59,7 @@ class BearMeta(type):
 
 def dbus_method(*args):
 
-    if len(args) == 1 and callable(args[0]):
+    if len(args) == 1 and type(args[0]) != type:
         logger.warning("Did you call the dbus_args decorator correctly?")
 
     def decorator(func):

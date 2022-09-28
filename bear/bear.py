@@ -148,7 +148,7 @@ class LabelBear(Bear):
         try:
             self.initialize_view()
         except Exception as e:
-            logger.critical(f"Failed to initalize view for {self.name}: {e}")
+            logger.critical(f"Failed to initalize view for {self.name}...")
 
     @dbus_method(str)
     def action(self, name: str):

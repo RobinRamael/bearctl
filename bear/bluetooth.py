@@ -22,6 +22,10 @@ BLUEZ_DBUS_NAME = "org.bluez"
 ADAPTER_PATH = "/org/bluez/hci0"
 
 
+class DeviceNotFound(Exception):
+    pass
+
+
 class DasBusBluetoothDevice:
     def __init__(self, mac_address, bus):
         self.bus = bus
@@ -53,7 +57,10 @@ class DasBusBluetoothDevice:
         return self.device.Get(DEVICE_INTERFACE, "Alias").get_string()
 
     def check_connection(self):
-        return self.device.Get(DEVICE_INTERFACE, "Connected").get_boolean()
+        try:
+            return self.device.Get(DEVICE_INTERFACE, "Connected").get_boolean()
+        except Exception as e:
+            raise DeviceNotFound from e
 
     def check_sink(self):
 
@@ -157,6 +164,9 @@ class BluetoothBear(LabelBear):
     def show_disconnected(self):
         self.view.update("", "bluetooth", BlockState.idle)
 
+    def show_error(self, msg="err"):
+        self.view.update(msg, "bluetooth", BlockState.error)
+
     def on_bluetooth_property_change(self, name, changed_props, _):
         try:
             is_connected = changed_props["Connected"]
@@ -194,15 +204,21 @@ class BluetoothBear(LabelBear):
         self.show_half_connected()
 
     def initialize_view(self):
-        if self.device.check_connection():
-            self.bluetooth_connected = True
-            if self.device.check_sink():
-                self.sink_added = True
-                self.show_fully_connected()
+        try:
+            if self.device.check_connection():
+                self.bluetooth_connected = True
+                if self.device.check_sink():
+                    self.sink_added = True
+                    self.show_fully_connected()
+                else:
+                    self.show_half_connected()
             else:
-                self.show_half_connected()
-        else:
-            self.show_disconnected()
+                self.show_disconnected()
+        except DeviceNotFound:
+            self.show_error("not found?")
+        except Exception as e:
+            logger.exception(e)
+            self.show_error()
 
     @dbus_method()
     def connect(self):
@@ -215,7 +231,7 @@ class BluetoothBear(LabelBear):
             self.device.connect()
         except DBusError as e:
             logger.exception(e)
-            self.view.update("err", "bluetooth", BlockState.error)
+            self.show_error()
 
     @dbus_method()
     def disconnect(self):
@@ -236,14 +252,14 @@ class BluetoothBear(LabelBear):
             if self.device.check_connection():
                 self.disconnect()
 
-        except DBusError as e:
-            logger.exception(e)
+            try:
+                self.adapter.remove(self.device)
+                logger.info(f"Removed device {self.device.mac_address}")
+            except DBusError as e:
+                logger.exception(e)
 
-        try:
-            self.adapter.remove(self.device)
-            logger.info(f"Removed device {self.device.mac_address}")
-        except DBusError as e:
-            logger.exception(e)
+        except DeviceNotFound as e:
+            pass
 
         try:
             self.adapter.start_scan()
@@ -252,7 +268,6 @@ class BluetoothBear(LabelBear):
             if e.dbus_name == "org.freedesktop.DBus.Error.InProgress":
                 logger.info("Already scanning...")
             else:
-                logger.info(e.__dict__)
                 logger.exception(e)
 
         for i in range(1, 21):

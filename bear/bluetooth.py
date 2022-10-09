@@ -63,6 +63,10 @@ class DasBusBluetoothDevice:
         except Exception as e:
             raise DeviceNotFound from e
 
+    def ensure_trusted(self):
+        self.device.Trusted = True
+        # self.device.Set(DEVICE_INTERFACE, "Trusted", True)
+
     def check_sink(self):
 
         with HiddenPrints():
@@ -302,4 +306,5 @@ class BluetoothBear(LabelBear):
 
         self.device.pair()
         self.device.connect()
+        self.device.ensure_trusted()
         self.adapter.stop_scan()

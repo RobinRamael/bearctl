@@ -3,11 +3,12 @@ import sys
 import threading
 import time
 
-from dasbus.error import DBusError
-from gi.repository import GObject
+from dasbus.error import DBusError, ErrorMapper, get_error_decorator
+# from gi.repository import GObject
 from pipewire_python.controller import Controller as PipewireController
 
 from bear.bear import LabelBear, dbus_method
+from bear.exceptions import InProgress, UnknownObject
 from bear.utils import HiddenPrints
 from bear.views import BlockState
 
@@ -264,11 +265,10 @@ class BluetoothBear(LabelBear):
         try:
             self.adapter.start_scan()
             logger.info(f"Started scanning")
+        except InProgress:
+            logger.info("Already scanning...")
         except DBusError as e:
-            if e.dbus_name == "org.freedesktop.DBus.Error.InProgress":
-                logger.info("Already scanning...")
-            else:
-                logger.exception(e)
+            logger.exception(e)
 
         for i in range(1, 21):
 
@@ -290,10 +290,11 @@ class BluetoothBear(LabelBear):
                 new_dev.get_info()
                 self.device = new_dev
                 break
-            except DBusError as e:
-                if e.dbus_name != "org.freedesktop.DBus.Error.UnknownObject":
-                    logger.exception(e)
+            except UnknownObject:
                 continue
+            except DBusError as e:
+                logger.exception(e)
+
         else:
             self.view.update("Repair failed", "bluetooth", BlockState.error)
             logger.error("Unable to find device after {i} tries... Aborting.")

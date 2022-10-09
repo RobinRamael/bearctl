@@ -11,10 +11,15 @@ from gi.repository import GLib
 from bear.battery import Battery, BatteryBear
 from bear.bluetooth import BluetoothBear, BluezAdapter, DasBusBluetoothDevice
 from bear.dpms import DPMSBear
+from bear.exceptions import error_mapper
 from bear.icons import Icons
 from bear.lorri import LorriBear
-from bear.systemd import (PauseableServiceLabelBear, ServiceCtl,
-                          ServiceLabelBear, SystemdManager)
+from bear.systemd import (
+    PauseableServiceLabelBear,
+    ServiceCtl,
+    ServiceLabelBear,
+    SystemdManager,
+)
 from bear.views import I3StatusBlock, NotificationCtl
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
@@ -24,8 +29,9 @@ logger = logging.getLogger()
 
 
 def build_bears():
-    session_bus = SessionMessageBus()
-    system_bus = SystemMessageBus()
+
+    session_bus = SessionMessageBus(error_mapper=error_mapper)
+    system_bus = SystemMessageBus(error_mapper=error_mapper)
 
     sys_systemd_manager = SystemdManager(bus=system_bus)
     bluetooth_service = ServiceCtl("bluetooth.service", systemd=sys_systemd_manager)

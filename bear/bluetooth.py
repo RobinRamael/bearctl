@@ -63,18 +63,18 @@ class DasBusBluetoothDevice:
     def check_sink(self):
 
         with HiddenPrints():
-            devs = self.pipewire.get_list_interfaces(
+            devices = self.pipewire.get_list_interfaces(
                 type_interfaces="Device",
                 filtered_by_type=True,
             )
 
-        bluetooth_device_macs = [
-            d["properties"]["device.string"]
-            for d in devs.values()
-            if d["properties"]["device.bus"] == "bluetooth"
-        ]
+        for device in devices.values():
+            if device["properties"].get("device.bus") == "bluetooth":
+                mac = device["properties"]["device.string"]
+                if mac == self.mac_address:
+                    return True
 
-        return any(mac == self.mac_address for mac in bluetooth_device_macs)
+        return False
 
     def connect(self):
         self.device.Connect()

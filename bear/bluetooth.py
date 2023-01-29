@@ -23,10 +23,6 @@ BLUEZ_DBUS_NAME = "org.bluez"
 ADAPTER_PATH = "/org/bluez/hci0"
 
 
-class DeviceNotFound(Exception):
-    pass
-
-
 class DasBusBluetoothDevice:
     def __init__(self, mac_address, bus):
         self.bus = bus
@@ -58,10 +54,7 @@ class DasBusBluetoothDevice:
         return self.device.Get(DEVICE_INTERFACE, "Alias").get_string()
 
     def check_connection(self):
-        try:
-            return self.device.Get(DEVICE_INTERFACE, "Connected").get_boolean()
-        except Exception as e:
-            raise DeviceNotFound from e
+        return self.device.Get(DEVICE_INTERFACE, "Connected").get_boolean()
 
     def ensure_trusted(self):
         self.device.Trusted = True
@@ -124,7 +117,7 @@ class PipewirePollThread(threading.Thread):
         self.interval = interval
 
     def run(self):
-        logger.info(f"Started polling for sink add")
+        logger.info("Started polling for sink add")
         n = 0
         while self.tries > n:
             if self.device.check_sink():
@@ -158,6 +151,11 @@ class BluetoothBear(LabelBear):
 
     def register(self):
         super().register()
+        try:
+            self.device.get_info()
+        except UnknownObject:
+            logger.error("Device seems to not be paired")
+
         self.device.register_property_listener(self.on_bluetooth_property_change)
 
     def show_fully_connected(self):
@@ -219,7 +217,7 @@ class BluetoothBear(LabelBear):
                     self.show_half_connected()
             else:
                 self.show_disconnected()
-        except DeviceNotFound:
+        except UnknownObject:
             self.show_error("not found?")
         except Exception as e:
             logger.exception(e)
@@ -252,23 +250,19 @@ class BluetoothBear(LabelBear):
 
     @dbus_method()
     def repair(self):
-        self.view.update("repairing (1)", "bluetooth", BlockState.warning)
         try:
             if self.device.check_connection():
                 self.disconnect()
-
-            try:
-                self.adapter.remove(self.device)
-                logger.info(f"Removed device {self.device.mac_address}")
-            except DBusError as e:
-                logger.exception(e)
-
-        except DeviceNotFound as e:
+            self.adapter.remove(self.device)
+            logger.info(f"Removed device {self.device.mac_address}")
+        except UnknownObject:
             pass
+        except DBusError as e:
+            logger.exception(e)
 
         try:
             self.adapter.start_scan()
-            logger.info(f"Started scanning")
+            logger.info("Started scanning")
         except InProgress:
             logger.info("Already scanning...")
         except DBusError as e:
@@ -304,7 +298,11 @@ class BluetoothBear(LabelBear):
             logger.error("Unable to find device after {i} tries... Aborting.")
             return
 
+        logger.info("Re-pairing with device")
         self.device.pair()
+        logger.info("Reconnecting to device")
         self.device.connect()
+        logger.info("Retrusting device")
         self.device.ensure_trusted()
+        logger.info("Stopping scan")
         self.adapter.stop_scan()

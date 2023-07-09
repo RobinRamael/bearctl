@@ -4,6 +4,7 @@ import threading
 import time
 
 from dasbus.error import DBusError, ErrorMapper, get_error_decorator
+
 # from gi.repository import GObject
 from pipewire_python.controller import Controller as PipewireController
 
@@ -250,6 +251,7 @@ class BluetoothBear(LabelBear):
 
     @dbus_method()
     def repair(self):
+        self.view.update("Repairing", "bluetooth", BlockState.warning)
         try:
             if self.device.check_connection():
                 self.disconnect()
@@ -263,8 +265,10 @@ class BluetoothBear(LabelBear):
         try:
             self.adapter.start_scan()
             logger.info("Started scanning")
+            self.view.update("Scanning...", "bluetooth", BlockState.warning)
         except InProgress:
             logger.info("Already scanning...")
+            self.view.update("Scanning...", "bluetooth", BlockState.warning)
         except DBusError as e:
             logger.exception(e)
 
@@ -274,11 +278,11 @@ class BluetoothBear(LabelBear):
 
             if i > 3:
                 self.view.update(
-                    f"is device peering? ({i})", "bluetooth", BlockState.error
+                    f"Is device peering? ({i})", "bluetooth", BlockState.error
                 )
             else:
 
-                self.view.update(f"repairing ({i})", "bluetooth", BlockState.warning)
+                self.view.update(f"Scanning ({i})", "bluetooth", BlockState.warning)
 
             try:
                 new_dev = DasBusBluetoothDevice(

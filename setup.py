@@ -6,6 +6,6 @@ setup(
     packages=find_packages(include=["bear", "bear.*"]),
     # setup_requires=["pytest-runner"],
     # tests_require=["pytest"],
-    intstall_requires=["click", "dasbus", "pipewire_python", "pygobject"],
+    intstall_requires=["click", "dasbus", "pygobject"],
     entry_points={"console_scripts": ["bearctl=bear.main:main"]},
 )

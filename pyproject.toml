@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "bear"
+version = "0.1.0"
+description = "homtying an entire os"
+authors = ["Robin Ramael <robin.ramael@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+click = "^8.1.6"
+PyGObject = "^3.44.1"
+dasbus = "^1.7"
+notify2 = "^0.3.1"
+pipewire_python = "0.2.3"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+bearctl = "bear.main:main"

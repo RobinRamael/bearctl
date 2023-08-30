@@ -29,7 +29,6 @@ logger = logging.getLogger()
 
 
 def build_bears():
-
     session_bus = SessionMessageBus(error_mapper=error_mapper)
     system_bus = SystemMessageBus(error_mapper=error_mapper)
 
@@ -42,12 +41,12 @@ def build_bears():
         BatteryBear(
             bus=session_bus, name="battery", battery=Battery(system_bus), nag_lobound=10
         ),
-        LorriBear(
-            bus=session_bus,
-            name="lorri",
-            icon=Icons.TROWEL,
-            view=I3StatusBlock(block_name="LorriBlock", session_bus=session_bus),
-        ),
+        # LorriBear(
+        #     bus=session_bus,
+        #     name="lorri",
+        #     icon=Icons.TROWEL,
+        #     view=I3StatusBlock(block_name="LorriBlock", session_bus=session_bus),
+        # ),
         BluetoothBear(
             name="bluephones",
             bus=session_bus,
@@ -97,7 +96,6 @@ def cli():
 
 @cli.command()
 def service():
-
     loop = GLib.MainLoop()
 
     for bear in build_bears():
@@ -114,7 +112,6 @@ def service():
 @click.argument("command")
 @click.argument("command_args", nargs=-1)
 def client(name, command, command_args):
-
     try:
         bear = next(b for b in build_bears() if b.name == name)
     except StopIteration:

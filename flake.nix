@@ -58,7 +58,7 @@
 
             });
             buildInputs =
-              (with pkgs; [ pkgs.pipewire pkgs.lorri pkgs.xorg.xset ]);
+              (with pkgs; [ pkgs.pipewire pkgs.lorri pkgs.xorg.xset pkgs.i3 ]);
           };
 
         });

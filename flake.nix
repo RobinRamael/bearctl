@@ -1,47 +1,53 @@
 {
   description = "Homtying an entire os";
 
-  # Nixpkgs / NixOS version to use.
   inputs = {
-    nixpkgs.url = "nixpkgs/nixos-23.05";
+    flake-utils.url = "github:numtide/flake-utils";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-23.11";
     poetry2nix = {
       url = "github:nix-community/poetry2nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
 
-  outputs = { self, nixpkgs, poetry2nix }:
-    let
-      # System types to support.
-      supportedSystems = [ "x86_64-linux" "aarch64-linux" ];
-
-      # Helper function to generate an attrset '{ x86_64-linux = f "x86_64-linux"; ... }'.
-      forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
-
-      # Nixpkgs instantiated for supported system types.
-      nixpkgsFor = forAllSystems (system: import nixpkgs { inherit system; });
-
-    in {
-
-      # Provide some binary packages for selected system types.
-      packages = forAllSystems (system:
-        let
-          pkgs = nixpkgsFor.${system};
-          poetry = poetry2nix.legacyPackages.${system};
-        in {
-          # The default package for 'nix build'. This makes sense if the
-          # flake provides only one package or there is a clear "main"
-          # package.
-
-          default = poetry.mkPoetryApplication {
+  outputs = inputs@{ self, nixpkgs, flake-utils, ... }:
+    flake-utils.lib.eachDefaultSystem (system:
+      let
+        pkgs = nixpkgs.legacyPackages.${system};
+        poetry2nix = inputs.poetry2nix.lib.mkPoetry2Nix { inherit pkgs; };
+      in {
+        packages = {
+          bear = poetry2nix.mkPoetryApplication {
             packageName = "bearctl";
             projectDir = ./.;
 
-            overrides = poetry.overrides.withDefaults (self: super: {
+            overrides = poetry2nix.overrides.withDefaults (self: super: {
 
+              # For some reason, since a while the build of pycairo fails with an error
+              # like
+              #
+              #   ERROR: File 'cairo/_cairo.cpython-311-x86_64-linux-gnu.so' could not be found
+              #
+              # because that file gets copied somewhere else. Here we explicitly copy it
+              # under the build/cairo directory.
+              #
+              # See also https://discourse.nixos.org/t/poetry2nix-and-pycairo/30173
+              # for future referenceL debugging with cntr seems to be sort of useful here
               pycairo = super.pycairo.overridePythonAttrs (old: {
-                nativeBuildInputs =
-                  [ self.meson pkgs.buildPackages.pkg-config ];
+                format = "other";
+                nativeBuildInputs = old.nativeBuildInputs or [ ] ++ [
+                  self.setuptools
+                  self.meson
+                  pkgs.ninja
+                  pkgs.buildPackages.pkg-config
+                ];
+                propagatedBuildInputs = old.propagatedBuildInputs or [ ]
+                  ++ [ pkgs.cairo ];
+                preInstall = ''
+                  cp `find lib* -name '_cairo.*.so'` cairo
+                '';
+                mesonFlags =
+                  [ "-Dpython=${if self.isPy3k then "python3" else "python"}" ];
               });
               pygobject = super.pygobject.overridePythonAttrs (old: {
                 buildInputs = (old.buildInputs or [ ]) ++ [ super.setuptools ];
@@ -60,7 +66,12 @@
             buildInputs =
               (with pkgs; [ pkgs.pipewire pkgs.lorri pkgs.xorg.xset pkgs.i3 ]);
           };
+          default = self.packages.${system}.bear;
+        };
 
-        });
-    };
+        devShells.default = pkgs.mkShell {
+          inputsFrom = [ self.packages.${system}.bear ];
+          packages = [ pkgs.poetry ];
+        };
+      });
 }

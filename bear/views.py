@@ -1,5 +1,5 @@
-import logging
 from abc import ABC, abstractmethod
+import logging
 from typing import Union
 
 from dasbus.connection import SessionMessageBus
@@ -81,7 +81,6 @@ class I3StatusBlock(BearLabel):
         )
 
     def update(self, message: str, icon: str, state: str):
-
         self.block.SetText(f"{message}", f"{message}")
         self.block.SetState(state)
 
@@ -99,24 +98,34 @@ class Null(BearLabel):
         pass
 
 
+class NotificationUrgency:
+    low = 0
+    normal = 1
+    critical = 2
+    error = "critical"
+    idle = "idle"
+
+
 class NotificationCtl:
     def __init__(self, session_bus):
         self.notifications = session_bus.get_proxy(
             "org.freedesktop.Notifications", "/org/freedesktop/Notifications"
         )
 
-    def notify(self, title, msg):
-
-        self.notifications.Notify(
+    def notify(self, title, msg, replace_id=0, urgency=NotificationUrgency.normal):
+        return self.notifications.Notify(
             "",
-            0,
+            replace_id,
             "face-smile",
             title,
             msg,
-            ["hop", "la"],
-            {},
+            [],
+            [],
             0,
         )
+
+    def close_notification(self, notification_id):
+        self.notifications.CloseNotification(notification_id)
 
     def register_notification_callback(self, f):
         self.notifications.NotificationClosed(f)

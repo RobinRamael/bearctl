@@ -1,7 +1,7 @@
+from functools import wraps
 import logging
 import os
 import sys
-from functools import wraps
 
 import click
 from dasbus.connection import SessionMessageBus, SystemMessageBus
@@ -39,7 +39,11 @@ def build_bears():
 
     bears = [
         BatteryBear(
-            bus=session_bus, name="battery", battery=Battery(system_bus), nag_lobound=10
+            bus=session_bus,
+            name="battery",
+            battery=Battery(system_bus),
+            nag_lobound=10,
+            notifications=NotificationCtl(session_bus=session_bus),
         ),
         # LorriBear(
         #     bus=session_bus,

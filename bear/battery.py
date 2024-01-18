@@ -3,7 +3,7 @@ import logging
 import subprocess
 
 from bear.bear import Bear
-from bear.views import NotificationCtl
+from bear.views import NotificationCtl, NotificationUrgency
 
 UPOWER_DEVICE_INTERFACE = "org.freedesktop.UPower.Device"
 UPOWER_BUS_NAME = "org.freedesktop.UPower"
@@ -83,11 +83,20 @@ class BatteryNagbar:
 
 
 class BatteryBear(Bear):
-    def __init__(self, bus, name: str, battery: Battery, nag_lobound=10):
+    def __init__(
+        self,
+        bus,
+        name: str,
+        battery: Battery,
+        notifications: NotificationCtl,
+        nag_lobound=10,
+    ):
         super().__init__(bus, name)
         self.battery = battery
-        self.nagbar = BatteryNagbar()
+        # self.nagbar = BatteryNagbar()
         self.nag_lobound = nag_lobound
+        self.notifications = notifications
+        self.notification_id = None
 
     def register(self):
         # no need to register our own interfaces, this is read only (for now?
@@ -97,16 +106,31 @@ class BatteryBear(Bear):
         self.battery.register_percentage_listener(self.on_percentage_change)
         self.battery.register_battery_state_listener(self.on_battery_state_change)
 
+    def notify(self):
+        self.notification_id = self.notifications.notify(
+            "Battery Low",
+            "Computerbear says chaaaarge",
+            replace_id=self.notification_id or 0,
+            urgency=NotificationUrgency.critical,  # not currently working
+        )
+        logger.info(f"Launched notification with id {self.notification_id}")
+
+    def close_notification(self):
+        if self.notification_id:
+            self.notifications.close_notification(self.notification_id)
+            logger.info(f"Closed notification with id {self.notification_id}")
+            self.notification_id = None
+
     def on_percentage_change(self, perc):
         logger.info(f"Battery percentage is now {perc}")
         if perc < self.nag_lobound:
-            self.nagbar.show()
+            self.notify()
         else:
-            self.nagbar.remove()
+            self.close_notification()
 
     def on_battery_state_change(self, state):
         logger.info(f"Battery state is now {state}")
-        if state == BatteryState.CHARGING:
-            self.nagbar.remove()
+        if state in (BatteryState.CHARGING, BatteryState.PENDING_CHARGE):
+            self.close_notification()
         elif state == BatteryState.DISCHARGING:
             self.on_percentage_change(self.battery.percentage_charged)

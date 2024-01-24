@@ -3,7 +3,7 @@ import logging
 import subprocess
 
 from bear.bear import Bear
-from bear.views import NotificationCtl, NotificationUrgency
+from bear.views import NotificationCtl, NotificationIcons, NotificationUrgency
 
 UPOWER_DEVICE_INTERFACE = "org.freedesktop.UPower.Device"
 UPOWER_BUS_NAME = "org.freedesktop.UPower"
@@ -89,6 +89,7 @@ class BatteryBear(Bear):
             "Computerbear says chaaaarge",
             replace_id=self.notification_id or 0,
             urgency=NotificationUrgency.critical,
+            icon=NotificationIcons.battery_error,
         )
         logger.info(f"Launched notification with id {self.notification_id}")
 

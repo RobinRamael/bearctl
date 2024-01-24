@@ -4,6 +4,7 @@ from typing import Union
 
 from dasbus.connection import SessionMessageBus
 from dasbus.error import DBusError
+from dasbus.typing import Variant
 from gi.repository import GLib
 
 BLINK_LENGTH_SECONDS = 1
@@ -120,7 +121,7 @@ class NotificationCtl:
             title,
             msg,
             [],
-            [],
+            [("urgency", Variant.new_byte(urgency))],
             0,
         )
 

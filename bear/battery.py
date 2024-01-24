@@ -71,7 +71,6 @@ class BatteryBear(Bear):
     ):
         super().__init__(bus, name)
         self.battery = battery
-        # self.nagbar = BatteryNagbar()
         self.nag_lobound = nag_lobound
         self.notifications = notifications
         self.notification_id = None
@@ -89,7 +88,7 @@ class BatteryBear(Bear):
             "Battery Low",
             "Computerbear says chaaaarge",
             replace_id=self.notification_id or 0,
-            urgency=NotificationUrgency.critical,  # not currently working
+            urgency=NotificationUrgency.critical,
         )
         logger.info(f"Launched notification with id {self.notification_id}")
 

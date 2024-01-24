@@ -37,6 +37,14 @@ class Battery:
     def percentage_charged(self):
         return self.device.Get(UPOWER_DEVICE_INTERFACE, "Percentage").unpack()
 
+    @property
+    def is_discharging(self):
+        return self.state not in (BatteryState.CHARGING, BatteryState.PENDING_CHARGE)
+
+    @property
+    def state(self):
+        return BatteryState(self.device.Get(UPOWER_DEVICE_INTERFACE, "State").unpack())
+
     def register_percentage_listener(self, f):
         def listener(_, changed_props, __):
             if "Percentage" in changed_props:
@@ -50,36 +58,6 @@ class Battery:
                 f(BatteryState(changed_props["State"].unpack()))
 
         self.device.PropertiesChanged.connect(listener)
-
-
-class BatteryNagbar:
-    def __init__(self):
-        self.process = None
-
-    @property
-    def is_running(self):
-        return self.process and self.process.poll() is None
-
-    def show(self):
-        if not self.is_running:
-            logger.info("Showing nagbar")
-            self.process = subprocess.Popen(
-                [
-                    "i3-nagbar",
-                    "-m",
-                    "Battery Low!",
-                    "-b",
-                    "Hibernate!",
-                    "'systemctl suspend-then-hibernate'",
-                ],
-                stdout=subprocess.DEVNULL,
-            )
-
-    def remove(self):
-        if self.is_running:
-            logger.info("Killing nagbar")
-            self.process.kill()
-            self.process = None
 
 
 class BatteryBear(Bear):
@@ -122,8 +100,8 @@ class BatteryBear(Bear):
             self.notification_id = None
 
     def on_percentage_change(self, perc):
-        logger.info(f"Battery percentage is now {perc}")
-        if perc < self.nag_lobound:
+        if perc < self.nag_lobound and self.battery.is_discharging:
+            logger.info(f"Battery percentage is now %s, notifying a bear", perc)
             self.notify()
         else:
             self.close_notification()
@@ -134,3 +112,5 @@ class BatteryBear(Bear):
             self.close_notification()
         elif state == BatteryState.DISCHARGING:
             self.on_percentage_change(self.battery.percentage_charged)
+        else:
+            logger.warning("Unhandled battery state %s", state)

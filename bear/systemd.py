@@ -7,6 +7,7 @@ from dasbus.error import DBusError
 from gi.repository import GLib
 
 from bear.bear import LabelBear, dbus_method
+from bear.icons import Icons
 from bear.utils import snake2camel
 from bear.views import BlockState
 
@@ -15,8 +16,6 @@ SYSTEMD_PATH = "/org/freedesktop/systemd1"
 SYSTEMD_MANAGER = "org.freedesktop.systemd1.Manager"
 
 logger = logging.getLogger(__name__)
-
-PAUSE_ICON = "\uf04c"
 
 
 class SystemdManager:
@@ -109,7 +108,7 @@ class ServiceLabelBear(LabelBear):
                 self.view.update("f{self.icon} {sub_status}", None, BlockState.warning)
 
         else:
-            self.view.update_simple_icon(self.icon, BlockState.error)
+            self.view.update_simple_icon(self.icon_off or self.icon, BlockState.error)
 
     def initialize_view(self):
         self.update_label()
@@ -186,6 +185,6 @@ class PauseableServiceLabelBear(ServiceLabelBear):
 
     def update_label(self):
         if self.paused:
-            self.view.update_simple_icon(PAUSE_ICON, BlockState.warning)
+            self.view.update_simple_icon(Icons.PAUSE, BlockState.warning)
         else:
             super().update_label()

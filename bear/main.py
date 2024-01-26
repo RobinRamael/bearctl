@@ -20,9 +20,7 @@ from bear.systemd import (
     ServiceLabelBear,
     SystemdManager,
 )
-from bear.views import I3StatusBlock, NotificationCtl
-
-logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+from bear.views import CombinedLabel, I3StatusBlock, NotificationCtl, PolybarBlock
 
 
 logger = logging.getLogger()
@@ -68,7 +66,10 @@ def build_bears():
             servicectl=ServiceCtl(
                 service_name="redshift.service", systemd=ses_systemd_manager
             ),
-            view=I3StatusBlock(block_name="RedshiftBlock", session_bus=session_bus),
+            view=CombinedLabel(
+                I3StatusBlock(block_name="RedshiftBlock", session_bus=session_bus),
+                PolybarBlock("redshift"),
+            ),
             # view=Printer(),
             icon=Icons.EYE,
         ),
@@ -78,15 +79,23 @@ def build_bears():
             servicectl=ServiceCtl(
                 service_name="dropbox.service", systemd=ses_systemd_manager
             ),
-            view=I3StatusBlock(block_name="DropboxBlock", session_bus=session_bus),
+            view=CombinedLabel(
+                I3StatusBlock(block_name="DropboxBlock", session_bus=session_bus),
+                PolybarBlock(block_name="dropbox"),
+            ),
             # view=Printer(),
-            icon=Icons.FOLDER,
+            icon=Icons.CLOUD,
+            icon_off=Icons.CLOUD_OFF,
         ),
         DPMSBear(
             name="dpms",
             bus=session_bus,
-            view=I3StatusBlock(block_name="DPMSBlock", session_bus=session_bus),
-            icon=Icons.EYE,
+            view=CombinedLabel(
+                I3StatusBlock(block_name="DPMSBlock", session_bus=session_bus),
+                PolybarBlock(block_name="dpms"),
+            ),
+            icon=Icons.FLASH,
+            icon_off=Icons.FLASH_OFF,
         ),
     ]
 
@@ -101,6 +110,8 @@ def cli():
 @cli.command()
 def service():
     loop = GLib.MainLoop()
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
 
     for bear in build_bears():
         bear.register()
@@ -114,8 +125,15 @@ def service():
 @cli.command()
 @click.argument("name")
 @click.argument("command")
+@click.option("--silent", is_flag=True)
 @click.argument("command_args", nargs=-1)
-def client(name, command, command_args):
+def client(name, command, command_args, silent=False):
+    logger = logging.getLogger()
+    if silent:
+        logger.setLevel(logging.ERROR)
+    else:
+        logger.setLevel(logging.INFO)
+
     try:
         bear = next(b for b in build_bears() if b.name == name)
     except StopIteration:

@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 import logging
+import subprocess
 from typing import Union
 
 from dasbus.connection import SessionMessageBus
@@ -37,6 +38,15 @@ class BearLabel(ABC):
             interval=interval,
             function=final_update,
         )
+
+
+class CombinedLabel(BearLabel):
+    def __init__(self, *labels):
+        self.labels = labels
+
+    def update(self, *args, **kwargs):
+        for label in self.labels:
+            label.update(*args, **kwargs)
 
 
 POSSIBLE_I3_STATUS_NAMES = ["rs.i3status", "rs.i3status.bottom", "rs.i3status.top"]
@@ -94,6 +104,39 @@ class LabelPrinter(BearLabel):
         print(f"msg: {message}, icon: {icon}, state: {state}")
 
 
+STATE_COLORS = {
+    BlockState.good: ("#B9D898", "#2E3440"),
+    BlockState.warning: ("#ebcb8b", "#2e3440"),
+    BlockState.error: ("#F37B86", "#0B0C0E"),
+    BlockState.idle: ("#2e3440", "#A3CBF5"),
+}
+
+
+class PolybarBlock(BearLabel):
+    def __init__(self, block_name):
+        self.block_name = block_name
+
+    def ipc_send(self, new_label):
+        # this needs to be done asynchronously because polybar is probably
+        # waiting for the dbus method that called this function to return before
+        # it can handle any other updates
+
+        def f():
+            logger.info(
+                f"sending ipc message action {self.block_name} send {new_label}"
+            )
+            subprocess.run(
+                ["polybar-msg", "action", self.block_name, "send", new_label]
+            )
+
+        GLib.idle_add(f, priority=GLib.PRIORITY_HIGH_IDLE)
+
+    def update(self, message: str, icon: str, state: str):
+        message = message or ""
+        bg, fg = STATE_COLORS[state]
+        self.ipc_send(f"%{{B{bg}}}%{{F{fg}}}{message}%{{B- F-}}")
+
+
 class Null(BearLabel):
     def update(self, message, icon, state):
         pass
@@ -111,8 +154,6 @@ def generate_icons():
     import importlib.resources as resources
 
     icons = resources.files("bear.resources")
-
-    print(str(icons))
 
     class _Icons:
         battery_error = str(icons / "battery_error.svg")

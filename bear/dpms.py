@@ -12,23 +12,11 @@ from bear.views import BlockState
 logger = logging.getLogger(__name__)
 
 
-class DPMSPollThread(threading.Thread):
-    def __init__(self, dpms_bear, interval):
-        super().__init__(daemon=True)
-        self.dpms_bear = dpms_bear
-        self.interval = interval
-
-    def run(self):
-        while True:
-            time.sleep(self.interval)
-            logger.debug("Polling dpms")
-            self.dpms_bear.update_label()
-
-
 class DPMSBear(LabelBear):
     def __init__(self, *args, poll_interval=10, **kwargs):
         super().__init__(*args, **kwargs)
         self.poll_interval = poll_interval
+        self._was_enabled = None
 
     def is_dpms_enabled(self):
         proc = subprocess.run(["xset", "q"], check=True, stdout=subprocess.PIPE)
@@ -49,33 +37,57 @@ class DPMSBear(LabelBear):
     def register(self):
         super().register()
 
-        DPMSPollThread(self, self.poll_interval).start()
+        GLib.timeout_add_seconds(
+            priority=GLib.PRIORITY_LOW,
+            function=self.update_label,
+            interval=self.poll_interval,
+        )
 
     def initialize_view(self):
         self.update_label()
 
+    def update_label_enabled(self):
+        self.update_view(self.icon, "", BlockState.idle)
+
+    def update_label_disabled(self):
+        self.update_view(self.icon_off, "", BlockState.warning)
+
     def update_label(self):
-        if self.is_dpms_enabled():
-            self.update_view("on", "", BlockState.idle)
+        enabled = self.is_dpms_enabled()
+
+        if self._was_enabled is None or enabled != self._was_enabled:
+            logger.info(f"updating label enabled={enabled}, cache={self._was_enabled}")
+            if enabled:
+                self.update_label_enabled()
+            else:
+                self.update_label_disabled()
+
         else:
-            self.update_view("off", "", BlockState.warning)
+            logger.debug(
+                f"not updating label from poll thread: enabled={enabled}, cache={self._was_enabled}"
+            )
+
+        self._was_enabled = enabled
 
     def enable_dpms(self):
         logger.info("enabling dpms")
         subprocess.run(["xset", "+dpms"], check=True)
+        self.update_label_enabled()
 
     def disable_dpms(self):
         logger.info("disabling dpms")
         subprocess.run(["xset", "s", "off", "-dpms"], check=True)
+        self.update_label_disabled()
 
     @dbus_method()
     def toggle(self):
-        if self.is_dpms_enabled():
-            self.disable_dpms()
-        else:
-            self.enable_dpms()
+        def _toggle():
+            if self.is_dpms_enabled():
+                self.disable_dpms()
+            else:
+                self.enable_dpms()
 
-        self.update_label()
+        GLib.idle_add(_toggle, priority=GLib.PRIORITY_HIGH_IDLE)
 
-    def on_right_click(self):
+    def on_left_click(self):
         self.toggle()

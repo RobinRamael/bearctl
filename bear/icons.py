@@ -1,6 +1,11 @@
 class Icons:
     FOLDER = "\uf07b"
-    EYE = "\uf06e"
+    CLOUD = "\ue2bd"
+    CLOUD_OFF = "\ue2c1"
+    EYE = "\ue8f4"
     TROWEL = "\ue589"
     TROWEL_BRICKS = "\ue58a"
     BLUETOOTH = "bluetooth"
+    PAUSE = "\ue034"
+    FLASH = "\ue3e7"
+    FLASH_OFF = "\ue3e6"

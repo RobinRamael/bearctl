@@ -1,9 +1,9 @@
+from collections import ChainMap
+from functools import wraps
 import inspect
 import logging
 import threading
 import time
-from collections import ChainMap
-from functools import wraps
 
 from dasbus.typing import get_dbus_type
 from dasbus.xml import XMLGenerator as DBusXML
@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 
 
 def generate_dbus_xml(interface_name: str, methods: dict):
-
     root = DBusXML.create_node()
     interface = DBusXML.create_interface(interface_name)
 
@@ -58,7 +57,6 @@ class BearMeta(type):
 
 
 def dbus_method(*args):
-
     if len(args) == 1 and type(args[0]) != type:
         logger.warning("Did you call the dbus_args decorator correctly?")
 
@@ -81,7 +79,6 @@ class BearClient:
         self.proxy = proxy
 
     def call(self, name: str, args):
-
         bear_method = getattr(self.bear, snake2camel(name))
 
         assert len(bear_method.dbus_args) == len(args), "incorrect n of arguments"
@@ -135,10 +132,11 @@ class Bear(metaclass=BearMeta):
 
 
 class LabelBear(Bear):
-    def __init__(self, bus, name, icon, view):
+    def __init__(self, bus, name, icon, view, icon_off=None):
         super().__init__(bus, name)
         self.view = view
         self.icon = icon
+        self.icon_off = icon_off or icon
 
     def update_view(self, msg, icon, status):
         self.view.update(msg, icon, status)

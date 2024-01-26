@@ -4,8 +4,6 @@ import threading
 import time
 
 from dasbus.error import DBusError, ErrorMapper, get_error_decorator
-
-# from gi.repository import GObject
 from pipewire_python.controller import Controller as PipewireController
 
 from bear.bear import LabelBear, dbus_method
@@ -34,7 +32,11 @@ class DasBusBluetoothDevice:
 
         self._sink_index = None
 
-        self.pipewire = PipewireController()
+        try:
+            self.pipewire = PipewireController()
+        except FileNotFoundError as e:
+            logger.error("Could not load pipewire: %", e)
+            self.pipewire = None
 
     def _as_object_name(self, mac_address: str):
         return f"/org/bluez/hci0/dev_{mac_address.replace(':', '_')}"
@@ -62,6 +64,11 @@ class DasBusBluetoothDevice:
         # self.device.Set(DEVICE_INTERFACE, "Trusted", True)
 
     def check_sink(self):
+        if not self.pipewire:
+            logger.error(
+                "Unable to check sink because pipewire doesnt seem available on the path"
+            )
+            return False
 
         with HiddenPrints():
             devices = self.pipewire.get_list_interfaces(
@@ -273,7 +280,6 @@ class BluetoothBear(LabelBear):
             logger.exception(e)
 
         for i in range(1, 21):
-
             time.sleep(3)
 
             if i > 3:
@@ -281,7 +287,6 @@ class BluetoothBear(LabelBear):
                     f"Is device peering? ({i})", "bluetooth", BlockState.error
                 )
             else:
-
                 self.view.update(f"Scanning ({i})", "bluetooth", BlockState.warning)
 
             try:

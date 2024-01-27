@@ -6,7 +6,6 @@ from bear.bear import Bear, dbus_method
 
 
 def assert_xml_equivalent(result, expected):
-
     obj1 = objectify.fromstring(expected)
     expect = etree.tostring(obj1)
     obj2 = objectify.fromstring(result)
@@ -16,15 +15,15 @@ def assert_xml_equivalent(result, expected):
 
 def test_xml():
     class TestBear(Bear):
-        @dbus_method
+        @dbus_method()
         def homti(self):
             pass
 
-        @dbus_method
+        @dbus_method()
         def tom(self):
             pass
 
-    bear = TestBear(bus=Mock(), name="test", view=Mock(), icon="bear")
+    bear = TestBear(bus=Mock(), name="test")
     print(bear.__dbus_xml__)
     expected_xml = """
         <node>
@@ -36,13 +35,17 @@ def test_xml():
     """
     assert_xml_equivalent(bear.__dbus_xml__, expected_xml)
 
+
 def test_xml_with_args():
     class TestBear(Bear):
-        @dbus_method
+        @dbus_method()
         def homti(self, n: int, name: str):
             pass
 
-    bear = TestBear(bus=Mock(), name="test", view=Mock(), icon="bear")
+    bear = TestBear(
+        bus=Mock(),
+        name="test",
+    )
     print(bear.__dbus_xml__)
     expected_xml = """
         <node>

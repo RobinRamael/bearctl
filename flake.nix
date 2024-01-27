@@ -73,6 +73,9 @@
         devShells.default = pkgs.mkShell {
           inputsFrom = [ self.packages.${system}.bear ];
           packages = [ pkgs.poetry ];
+          shellHook = ''
+            export PYTHONBREAKPOINT="ipdb.set_trace"
+          '';
         };
       });
 }

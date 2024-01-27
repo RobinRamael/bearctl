@@ -40,15 +40,10 @@ def build_bears():
             bus=session_bus,
             name="battery",
             battery=Battery(system_bus),
-            nag_lobound=10,
+            bounds=(10, 30, 100),
             notifications=NotificationCtl(session_bus=session_bus),
+            view=PolybarBlock("battery"),
         ),
-        # LorriBear(
-        #     bus=session_bus,
-        #     name="lorri",
-        #     icon=Icons.TROWEL,
-        #     view=I3StatusBlock(block_name="LorriBlock", session_bus=session_bus),
-        # ),
         BluetoothBear(
             name="bluephones",
             bus=session_bus,
@@ -57,7 +52,10 @@ def build_bears():
                 mac_address="38:18:4C:E9:00:D8", bus=system_bus
             ),
             adapter=BluezAdapter(bus=system_bus),
-            view=I3StatusBlock(block_name="BluephonesBlock", session_bus=session_bus),
+            view=CombinedLabel(
+                I3StatusBlock(block_name="BluephonesBlock", session_bus=session_bus),
+                PolybarBlock(block_name="bluephones"),
+            ),
             icon="bluetooth",
         ),
         PauseableServiceLabelBear(

@@ -1,9 +1,17 @@
+from dataclasses import dataclass
 import enum
 import logging
 import subprocess
 
 from bear.bear import Bear
-from bear.views import NotificationCtl, NotificationIcons, NotificationUrgency
+from bear.icons import Icons
+from bear.views import (
+    BearLabel,
+    BlockState,
+    NotificationCtl,
+    NotificationIcons,
+    NotificationUrgency,
+)
 
 UPOWER_DEVICE_INTERFACE = "org.freedesktop.UPower.Device"
 UPOWER_BUS_NAME = "org.freedesktop.UPower"
@@ -60,28 +68,50 @@ class Battery:
         self.device.PropertiesChanged.connect(listener)
 
 
-class BatteryBear(Bear):
-    def __init__(
-        self,
-        bus,
-        name: str,
-        battery: Battery,
-        notifications: NotificationCtl,
-        nag_lobound=10,
-    ):
-        super().__init__(bus, name)
-        self.battery = battery
-        self.nag_lobound = nag_lobound
+@dataclass
+class BatteryData:
+    percentage: int
+    state: BatteryState
+
+
+class BatteryMonitor:
+    def __init__(self, view: BearLabel, bounds=(10, 30, 100)):
+        self.critical_level, self.low_level, self.full_level = bounds
+        assert self.critical_level <= self.low_level <= self.full_level
+        self.view = view
+
+    def block_state_for(self, perc):
+        if perc > self.low_level:
+            return BlockState.good
+
+        elif perc > self.critical_level:
+            return BlockState.warning
+        else:
+            return BlockState.error
+
+    def icon_for(self, data: BatteryData):
+        if data.state == BatteryState.CHARGING:
+            icons = Icons.BATTERY_CHARGING_LEVELS
+            logging.debug("using charging icons")
+        else:
+            icons = Icons.BATTERY_LEVELS
+            logging.debug("using regular icons")
+
+        return icons[int(data.percentage // (100 / len(icons)))]
+
+    def on_change(self, battery_data):
+        self.view.update(
+            f"{battery_data.percentage:.0f}%",
+            state=self.block_state_for(battery_data.percentage),
+            icon=self.icon_for(battery_data),
+        )
+
+
+class BatteryNotificationView:
+    def __init__(self, notifications, nag_lobound):
         self.notifications = notifications
         self.notification_id = None
-
-    def register(self):
-        # no need to register our own interfaces, this is read only (for now?
-        # but what would we even tell upower to do?):
-        # super().register()
-
-        self.battery.register_percentage_listener(self.on_percentage_change)
-        self.battery.register_battery_state_listener(self.on_battery_state_change)
+        self.nag_lobound = nag_lobound
 
     def notify(self):
         self.notification_id = self.notifications.notify(
@@ -99,18 +129,63 @@ class BatteryBear(Bear):
             logger.info(f"Closed notification with id {self.notification_id}")
             self.notification_id = None
 
-    def on_percentage_change(self, perc):
-        if perc < self.nag_lobound and self.battery.is_discharging:
-            logger.info(f"Battery percentage is now %s, notifying a bear", perc)
-            self.notify()
-        else:
+    def on_change(self, battery_data: BatteryData):
+        if battery_data.state in (BatteryState.CHARGING, BatteryState.PENDING_CHARGE):
             self.close_notification()
+        elif battery_data.state == BatteryState.DISCHARGING:
+            if battery_data.percentage < self.nag_lobound:
+                logger.info(
+                    f"Battery percentage is now %s, notifying a bear",
+                    battery_data.percentage,
+                )
+                self.notify()
+            else:
+                self.close_notification()
+        else:
+            logger.warning("Unhandled battery state %s", battery_data.state)
+
+
+class BatteryBear(Bear):
+    def __init__(
+        self,
+        bus,
+        name: str,
+        battery: Battery,
+        notifications: NotificationCtl,
+        view: BearLabel,
+        bounds=(10, 30, 100),
+    ):
+        super().__init__(bus, name)
+        self.battery = battery
+        self.view = view
+
+        self.notifications = BatteryNotificationView(notifications, bounds[0])
+        self.monitor = BatteryMonitor(view, bounds)
+
+    def register(self):
+        # no need to register our own interfaces, this is read only (for now?
+        # but what would we even tell upower to do?):
+        # super().register()
+
+        self.battery.register_percentage_listener(self.on_percentage_change)
+        self.battery.register_battery_state_listener(self.on_battery_state_change)
+
+        self.last_data = BatteryData(
+            self.battery.percentage_charged, self.battery.state
+        )
+
+        self.monitor.on_change(self.last_data)
+
+    def on_change(self, battery_data):
+        self.monitor.on_change(battery_data)
+        self.notifications.on_change(battery_data)
+
+    def on_percentage_change(self, perc):
+        new_data = BatteryData(perc, self.last_data.state)
+        self.on_change(new_data)
+        self.last_data = new_data
 
     def on_battery_state_change(self, state):
-        logger.info(f"Battery state is now {state}")
-        if state in (BatteryState.CHARGING, BatteryState.PENDING_CHARGE):
-            self.close_notification()
-        elif state == BatteryState.DISCHARGING:
-            self.on_percentage_change(self.battery.percentage_charged)
-        else:
-            logger.warning("Unhandled battery state %s", state)
+        new_data = BatteryData(self.last_data.percentage, state)
+        self.on_change(new_data)
+        self.last_data = new_data

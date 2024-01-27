@@ -126,15 +126,17 @@ class PolybarBlock(BearLabel):
                 f"sending ipc message action {self.block_name} send {new_label}"
             )
             subprocess.run(
-                ["polybar-msg", "action", self.block_name, "send", new_label]
+                ["polybar-msg", "action", self.block_name, "send", new_label],
+                stdout=subprocess.DEVNULL,
             )
 
         GLib.idle_add(f, priority=GLib.PRIORITY_HIGH_IDLE)
 
     def update(self, message: str, icon: str, state: str):
         message = message or ""
+        icon = icon or ""
         bg, fg = STATE_COLORS[state]
-        self.ipc_send(f"%{{B{bg}}}%{{F{fg}}}{message}%{{B- F-}}")
+        self.ipc_send(f"%{{B{bg}}}%{{F{fg}}}{icon}{message}%{{B- F-}}")
 
 
 class Null(BearLabel):
@@ -146,8 +148,6 @@ class NotificationUrgency:
     low = 0
     normal = 1
     critical = 2
-    error = "critical"
-    idle = "idle"
 
 
 def generate_icons():

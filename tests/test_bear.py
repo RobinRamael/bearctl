@@ -24,7 +24,6 @@ def test_xml():
             pass
 
     bear = TestBear(bus=Mock(), name="test")
-    print(bear.__dbus_xml__)
     expected_xml = """
         <node>
             <interface name="org.robinramael.bear.TestBear">
@@ -46,7 +45,6 @@ def test_xml_with_args():
         bus=Mock(),
         name="test",
     )
-    print(bear.__dbus_xml__)
     expected_xml = """
         <node>
             <interface name="org.robinramael.bear.TestBear">

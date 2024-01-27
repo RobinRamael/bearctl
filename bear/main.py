@@ -108,11 +108,18 @@ def cli():
 
 
 @cli.command()
+@click.option(
+    "--verbosity",
+    type=click.Choice(
+        ["critical", "error", "warning", "info", "debug"], case_sensitive=False
+    ),
+    default="info",
+)
 @click.argument("bears", nargs=-1)
-def service(bears):
+def service(bears, verbosity):
     loop = GLib.MainLoop()
     logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.getLevelName(verbosity.upper()))
 
     all_bears = build_bears()
 

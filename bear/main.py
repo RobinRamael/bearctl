@@ -108,12 +108,20 @@ def cli():
 
 
 @cli.command()
-def service():
+@click.argument("bears", nargs=-1)
+def service(bears):
     loop = GLib.MainLoop()
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
 
-    for bear in build_bears():
+    all_bears = build_bears()
+
+    if bears:
+        bears_to_register = [b for b in all_bears if b.name in bears]
+    else:
+        bears_to_register = all_bears
+
+    for bear in bears_to_register:
         bear.register()
 
         logger.info(f"Sucessfully initialized {bear.name} bear")

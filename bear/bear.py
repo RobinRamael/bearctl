@@ -148,6 +148,9 @@ class LabelBear(Bear):
         except Exception as e:
             logger.critical(f"Failed to initalize view for {self.name}...")
 
+    def initialize_view(self):
+        pass
+
     @dbus_method(str)
     def action(self, name: str):
         logger.info(f"Called {name} action on {self.name}")
@@ -169,7 +172,4 @@ class LabelBear(Bear):
         pass
 
     def on_double_left_click(self):
-        pass
-
-    def initialize_view(self):
         pass

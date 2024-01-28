@@ -124,6 +124,26 @@ class ServiceLabelBear(LabelBear):
         self.servicectl.stop()
         logger.info(f"Stopped {self.name} service")
 
+    @dbus_method(int)
+    def toggle(self):
+        logger.debug("toggle call received")
+        if self.servicectl.stopped:
+            self.start()
+        else:
+            self.stop()
+
+    @dbus_method(int)
+    def toggle_pause(self, seconds: int):
+        logger.debug("toggle_pause call received")
+        if self.servicectl.stopped:
+            self.start()
+            logger.info(f"service is stopped pause is {self.paused}, unpauseing.")
+        else:
+            self.pause(seconds)
+
+    def on_left_click(self):
+        self.toggle()
+
 
 class RevivingThread(threading.Thread):
     def __init__(self, servicectl, seconds):

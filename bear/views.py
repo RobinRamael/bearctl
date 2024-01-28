@@ -57,9 +57,10 @@ logger = logging.getLogger(__name__)
 
 class BlockState:
     good = "good"
+    idle = "idle"
+    info = "info"
     warning = "warning"
     error = "critical"
-    idle = "idle"
 
 
 class I3StatusBlock(BearLabel):
@@ -109,6 +110,7 @@ STATE_COLORS = {
     BlockState.warning: ("#ebcb8b", "#2e3440"),
     BlockState.error: ("#F37B86", "#0B0C0E"),
     BlockState.idle: ("#2e3440", "#A3CBF5"),
+    BlockState.info: ("#7AA7E0", "#0A0B0E"),
 }
 
 

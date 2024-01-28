@@ -13,6 +13,7 @@ from bear.bluetooth import BluetoothBear, BluezAdapter, DasBusBluetoothDevice
 from bear.dpms import DPMSBear
 from bear.exceptions import error_mapper
 from bear.icons import Icons
+from bear.load_average import LoadAverageBear
 from bear.lorri import LorriBear
 from bear.systemd import (
     PauseableServiceLabelBear,
@@ -94,6 +95,12 @@ def build_bears():
             ),
             icon=Icons.FLASH,
             icon_off=Icons.FLASH_OFF,
+        ),
+        LoadAverageBear(
+            name="loadavg",
+            bus=session_bus,
+            view=PolybarBlock(block_name="loadavg"),
+            icon=Icons.GEAR,
         ),
     ]
 

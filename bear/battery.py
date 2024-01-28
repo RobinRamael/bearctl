@@ -163,9 +163,7 @@ class BatteryBear(Bear):
         self.monitor = BatteryMonitor(view, bounds)
 
     def register(self):
-        # no need to register our own interfaces, this is read only (for now?
-        # but what would we even tell upower to do?):
-        # super().register()
+        super().register()
 
         self.battery.register_percentage_listener(self.on_percentage_change)
         self.battery.register_battery_state_listener(self.on_battery_state_change)

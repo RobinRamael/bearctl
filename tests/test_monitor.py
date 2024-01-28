@@ -2,7 +2,7 @@ from unittest.mock import ANY, Mock
 
 import pytest
 
-from bear.load_average import LoadAverageBear
+from bear.monitor import LoadAverageBear
 from bear.views import BlockState
 
 

@@ -13,8 +13,8 @@ from bear.bluetooth import BluetoothBear, BluezAdapter, DasBusBluetoothDevice
 from bear.dpms import DPMSBear
 from bear.exceptions import error_mapper
 from bear.icons import Icons
-from bear.load_average import LoadAverageBear
 from bear.lorri import LorriBear
+from bear.monitor import CPUBear, LoadAverageBear, MemoryBear
 from bear.systemd import (
     PauseableServiceLabelBear,
     ServiceCtl,
@@ -100,7 +100,24 @@ def build_bears():
             name="loadavg",
             bus=session_bus,
             view=PolybarBlock(block_name="loadavg"),
+            levels=(0.3, 0.6, 0.9),
             icon=Icons.GEAR,
+        ),
+        MemoryBear(
+            name="memory",
+            bus=session_bus,
+            view=PolybarBlock(block_name="memory"),
+            levels=(10, 60, 90),
+            interval=1,
+            icon=Icons.SD_CARD,
+        ),
+        CPUBear(
+            name="cpu",
+            bus=session_bus,
+            view=PolybarBlock(block_name="cpu"),
+            levels=(10, 60, 90),
+            interval=1,
+            icon=Icons.CALCULATOR,
         ),
     ]
 

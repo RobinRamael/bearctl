@@ -37,3 +37,6 @@ class Icons:
     ]
 
     GEAR = "󰢻"
+
+    CALCULATOR = "󰃬"
+    SD_CARD = "󰑹"

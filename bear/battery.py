@@ -101,7 +101,7 @@ class BatteryMonitor:
 
     def on_change(self, battery_data):
         self.view.update(
-            f"{battery_data.percentage:.0f}%",
+            f"{battery_data.percentage:>3.0f}%",  # nothing after comma, pad to length 3
             state=self.block_state_for(battery_data.percentage),
             icon=self.icon_for(battery_data),
         )

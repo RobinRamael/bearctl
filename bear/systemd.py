@@ -6,10 +6,10 @@ from dasbus.connection import SessionMessageBus
 from dasbus.error import DBusError
 from gi.repository import GLib
 
-from bear.bear import LabelBear, dbus_method
+from bear.bear import Bear, LabelBear, WidgetBear, dbus_method
 from bear.icons import Icons
 from bear.utils import snake2camel
-from bear.views import BlockState
+from bear.views import BlockState, EwwController, EwwServiceWidget
 
 SYSTEMD_BUS_NAME = "org.freedesktop.systemd1"
 SYSTEMD_PATH = "/org/freedesktop/systemd1"
@@ -77,23 +77,26 @@ class ServiceCtl:
         self.unit.Stop("replace")
 
 
-class ServiceLabelBear(LabelBear):
-    def __init__(self, *args, servicectl: ServiceCtl, **kwargs):
+class ServiceLabelBear(WidgetBear):
+    def __init__(
+        self, *args, servicectl: ServiceCtl, widget: EwwServiceWidget, **kwargs
+    ):
         super().__init__(*args, **kwargs)
         self.servicectl = servicectl
+        self.widget = widget
 
-    def on_property_change(self, name, changed_props, _):
+    def on_property_change(self, _, changed_props, _):
         if "ActiveState" in changed_props:
             logger.info(
                 f"Received changed ActiveState in {self.name}, is {changed_props['ActiveState']}"
             )
-            self.update_label()
+            self.update_widget()
 
     def register(self):
         super().register()
         self.servicectl.register_listener(self.on_property_change)
 
-    def update_label(self):
+    def update_widget(self):
         status = self.servicectl.active_state
         sub_status = self.servicectl.sub_state
 
@@ -103,15 +106,12 @@ class ServiceLabelBear(LabelBear):
 
         if status == "active":
             if sub_status == "running":
-                self.view.update_simple_icon(self.icon, BlockState.good)
+                self.widget.set_enabled()
             else:
-                self.view.update("f{self.icon} {sub_status}", None, BlockState.warning)
+                self.widget.set_disabled()
 
         else:
-            self.view.update_simple_icon(self.icon_off or self.icon, BlockState.error)
-
-    def initialize_view(self):
-        self.update_label()
+            self.widget.set_disabled()
 
     @dbus_method()
     def start(self):

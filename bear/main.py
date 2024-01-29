@@ -43,7 +43,7 @@ def build_bears():
 
     ses_systemd_manager = SystemdManager(bus=session_bus)
 
-    EwwController.bootstrap()
+    eww_controller = EwwController()
 
     bears = [
         # BatteryBear(
@@ -66,40 +66,35 @@ def build_bears():
             ),
             icon="bluetooth",
         ),
-        PauseableServiceLabelBear(
-            name="redshift",
-            bus=session_bus,
-            servicectl=ServiceCtl(
-                service_name="redshift.service", systemd=ses_systemd_manager
-            ),
-            view=CombinedLabel(
-                I3StatusBlock(block_name="RedshiftBlock", session_bus=session_bus),
-            ),
-            icon=Icons.EYE,
-        ),
+        # PauseableServiceLabelBear(
+        #     name="redshift",
+        #     bus=session_bus,
+        #     servicectl=ServiceCtl(
+        #         service_name="redshift.service", systemd=ses_systemd_manager
+        #     ),
+        #     view=CombinedLabel(
+        #         I3StatusBlock(block_name="RedshiftBlock", session_bus=session_bus),
+        #     ),
+        #     icon=Icons.EYE,
+        # ),
         ServiceLabelBear(
             name="dropbox",
             bus=session_bus,
             servicectl=ServiceCtl(
                 service_name="dropbox.service", systemd=ses_systemd_manager
             ),
-            view=CombinedLabel(
-                I3StatusBlock(block_name="DropboxBlock", session_bus=session_bus),
-            ),
-            # view=Printer(),
-            icon=Icons.CLOUD,
-            icon_off=Icons.CLOUD_OFF,
+            widget=EwwServiceWidget(eww=eww_controller, service_name="dropbox"),
         ),
         DPMSBear(
             name="dpms",
             bus=session_bus,
-            widget=EwwServiceWidget(eww=EwwController(), service_name="dpms"),
+            widget=EwwServiceWidget(eww=eww_controller, service_name="dpms"),
             interval=1,
         ),
         LoadAverageBear(
             name="loadavg",
             bus=session_bus,
-            view=EwwStateBlock(eww=EwwController(), block_name="loadavg"),
+            view=EwwStateBlock(eww=eww_controller, block_name="loadavg"),
             levels=(0.3, 0.6, 0.9),
             icon=Icons.GEAR,
             interval=1,
@@ -107,7 +102,7 @@ def build_bears():
         MemoryBear(
             name="memory",
             bus=session_bus,
-            view=EwwStateBlock(eww=EwwController(), block_name="memory"),
+            view=EwwStateBlock(eww=eww_controller, block_name="memory"),
             levels=(10, 60, 90),
             interval=1,
             icon=Icons.SD_CARD,
@@ -115,7 +110,7 @@ def build_bears():
         CPUBear(
             name="cpu",
             bus=session_bus,
-            view=EwwStateBlock(eww=EwwController(), block_name="cpu"),
+            view=EwwStateBlock(eww=eww_controller, block_name="cpu"),
             levels=(10, 60, 90),
             interval=1,
             icon=Icons.CALCULATOR,
@@ -123,7 +118,7 @@ def build_bears():
         BearMonitorBear(
             name="bear",
             bus=session_bus,
-            view=EwwStateBlock(eww=EwwController(), block_name="bear"),
+            view=EwwStateBlock(eww=eww_controller, block_name="bear"),
             levels=(10, 60, 90),
             interval=1,
             icon=Icons.BEAR,
@@ -148,10 +143,20 @@ def cli():
 )
 @click.argument("bears", nargs=-1)
 def service(bears, verbosity):
-    loop = GLib.MainLoop()
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
     logger = logging.getLogger()
+    logger.handlers = [handler]
+
     logger.setLevel(logging.getLevelName(verbosity.upper()))
 
+    logger.info("Starting GLib main loop")
+    loop = GLib.MainLoop()
+
+    logger.info("Bootstrapping client into eww")
+    EwwController.bootstrap()
+
+    logger.info("Building a small but formidable army of bears...")
     all_bears = build_bears()
 
     if bears:
@@ -189,6 +194,8 @@ def client(name, command, command_args, silent=False):
     client = bear.get_client()
 
     client.call(command, command_args)
+
+    logger.info("Ta-ta mr bear!")
 
 
 def main():

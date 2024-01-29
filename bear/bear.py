@@ -136,6 +136,7 @@ class ViewableBear(Bear):
         super().__init__(bus, name)
         self.view = view
 
+    # legacy purposes. can this be removed?
     def update_view(self, msg, icon, status):
         self.view.update(msg, icon, status)
 
@@ -148,6 +149,22 @@ class ViewableBear(Bear):
 
     def initialize_view(self):
         pass
+
+
+class WidgetBear(Bear):
+    def register(self):
+        super().register()
+        try:
+            logger.info("Initializing view for %s", self.name)
+            self.initialize_view()
+        except Exception as e:
+            logger.critical(f"Failed to initalize view for {self.name}...")
+
+    def initialize_view(self):
+        self.update_widget()
+
+    def update_widget(self):
+        raise NotImplementedError
 
 
 class ActionableBear(Bear):

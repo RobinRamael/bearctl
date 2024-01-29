@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 import logging
+import os
 import subprocess
 import sys
 from typing import Union
@@ -145,11 +146,19 @@ class PolybarBlock(BearLabel):
 class EwwController:
     @staticmethod
     def bootstrap():
-        # where bear?
-        location = sys.argv[0]
-        logger.info(location)
+        try:
+            location = os.environ["BEARCTL_EXECUTABLE"]
+            logger.debug("Found %s in env var", location)
+        except KeyError:
+            location = sys.argv[0]
+            logger.debug("Found %s in sys.args", location)
 
-        # subprocess.run(["eww", "update", f"BEARCTL={}"])
+        if not os.access(location, os.X_OK):
+            logger.warning("%s is not executable, skipping...", location)
+            return
+
+        subprocess.run(["eww", "update", f"BEARCTL={location}"])
+        logger.info("Bootstrapped %s into eww variable", location)
 
     def update(self, **kwargs):
         variables = [f"{k}={v}" for k, v in kwargs.items()]
@@ -172,9 +181,10 @@ class EwwStateBlock(BearLabel):
         )
 
 
-EWW_SERVICE_DISABLED = 0
-EWW_SERVICE_ENABLED = 1
-EWW_SERVICE_PAUSED = 2
+class EwwServiceStates:
+    DISABLED = 0
+    ENABLED = 1
+    PAUSED = 2
 
 
 class EwwServiceWidget:
@@ -184,13 +194,13 @@ class EwwServiceWidget:
         self.eww = eww
 
     def set_paused(self):
-        self.eww.update(**{f"{self.service_name}_state": EWW_SERVICE_PAUSED})
+        self.eww.update(**{f"{self.service_name}_state": EwwServiceStates.PAUSED})
 
     def set_enabled(self):
-        self.eww.update(**{f"{self.service_name}_state": EWW_SERVICE_ENABLED})
+        self.eww.update(**{f"{self.service_name}_state": EwwServiceStates.ENABLED})
 
     def set_disabled(self):
-        self.eww.update(**{f"{self.service_name}_state": EWW_SERVICE_DISABLED})
+        self.eww.update(**{f"{self.service_name}_state": EwwServiceStates.DISABLED})
 
 
 class Null(BearLabel):

@@ -5,14 +5,14 @@ import time
 
 from gi.repository import GLib
 
-from bear.bear import ActionableBear, LabelBear, dbus_method
+from bear.bear import ActionableBear, LabelBear, WidgetBear, dbus_method
 from bear.icons import Icons
 from bear.views import BlockState, EwwServiceWidget
 
 logger = logging.getLogger(__name__)
 
 
-class DPMSBear(ActionableBear):
+class DPMSBear(ActionableBear, WidgetBear):
     def __init__(self, *args, widget: EwwServiceWidget, interval=10, **kwargs):
         super().__init__(*args, **kwargs)
         self.poll_interval = interval
@@ -40,30 +40,21 @@ class DPMSBear(ActionableBear):
 
         GLib.timeout_add_seconds(
             priority=GLib.PRIORITY_DEFAULT,
-            function=self.update_label,
+            function=self.update_widget,
             interval=self.poll_interval,
         )
         logger.debug("DPMS polling enabled")
 
-    def initialize_view(self):
-        self.update_label()
-
-    def update_label_enabled(self):
-        self.widget.set_enabled()
-
-    def update_label_disabled(self):
-        self.widget.set_disabled()
-
-    def update_label(self):
+    def update_widget(self):
         logger.debug("polling dpms")
         enabled = self.is_dpms_enabled()
 
         if self._was_enabled is None or enabled != self._was_enabled:
             logger.info(f"updating label enabled={enabled}, cache={self._was_enabled}")
             if enabled:
-                self.update_label_enabled()
+                self.widget.set_enabled()
             else:
-                self.update_label_disabled()
+                self.widget.set_disabled()
 
         else:
             logger.debug(
@@ -75,12 +66,12 @@ class DPMSBear(ActionableBear):
     def enable_dpms(self):
         logger.info("enabling dpms")
         subprocess.run(["xset", "+dpms"], check=True)
-        self.update_label_enabled()
+        self.widget.set_enabled()
 
     def disable_dpms(self):
         logger.info("disabling dpms")
         subprocess.run(["xset", "s", "off", "-dpms"], check=True)
-        self.update_label_disabled()
+        self.widget.set_disabled()
 
     @dbus_method()
     def toggle(self):

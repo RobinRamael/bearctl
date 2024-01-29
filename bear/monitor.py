@@ -76,3 +76,17 @@ class MemoryBear(MonitorBear):
             message=f"{mem_perc:>3.0f}%",
             state=self.state_for(mem_perc),
         )
+
+
+class BearMonitorBear(MonitorBear):
+    def update(self):
+        process = psutil.Process(os.getpid())
+        cpu_perc = process.cpu_percent()
+
+        mem_perc = process.memory_percent()
+
+        self.view.update(
+            icon=self.icon,
+            message=f"{cpu_perc:>3.0f}% {mem_perc:>3.0f}%",
+            state=self.state_for(cpu_perc),
+        )

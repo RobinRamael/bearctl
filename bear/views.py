@@ -124,7 +124,7 @@ class PolybarBlock(BearLabel):
         # it can handle any other updates
 
         def f():
-            logger.info(
+            logger.debug(
                 f"sending ipc message action {self.block_name} send {new_label}"
             )
             subprocess.run(

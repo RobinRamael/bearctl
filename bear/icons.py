@@ -40,3 +40,4 @@ class Icons:
 
     CALCULATOR = "󰃬"
     SD_CARD = "󰑹"
+    BEAR = "󱣻"

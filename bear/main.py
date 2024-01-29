@@ -14,7 +14,7 @@ from bear.dpms import DPMSBear
 from bear.exceptions import error_mapper
 from bear.icons import Icons
 from bear.lorri import LorriBear
-from bear.monitor import CPUBear, LoadAverageBear, MemoryBear
+from bear.monitor import BearMonitorBear, CPUBear, LoadAverageBear, MemoryBear
 from bear.systemd import (
     PauseableServiceLabelBear,
     ServiceCtl,
@@ -118,6 +118,14 @@ def build_bears():
             levels=(10, 60, 90),
             interval=1,
             icon=Icons.CALCULATOR,
+        ),
+        BearMonitorBear(
+            name="bear",
+            bus=session_bus,
+            view=PolybarBlock(block_name="bear"),
+            levels=(10, 60, 90),
+            interval=1,
+            icon=Icons.BEAR,
         ),
     ]
 

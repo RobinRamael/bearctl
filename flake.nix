@@ -64,7 +64,7 @@
 
             });
             buildInputs =
-              (with pkgs; [ pkgs.pipewire pkgs.lorri pkgs.xorg.xset pkgs.i3 pkgs.polybar]);
+              (with pkgs; [ pkgs.pipewire pkgs.lorri pkgs.xorg.xset pkgs.i3 pkgs.polybar pkgs.eww]);
 
           };
           default = self.packages.${system}.bear;

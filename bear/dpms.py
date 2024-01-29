@@ -5,18 +5,19 @@ import time
 
 from gi.repository import GLib
 
-from bear.bear import LabelBear, dbus_method
+from bear.bear import ActionableBear, LabelBear, dbus_method
 from bear.icons import Icons
-from bear.views import BlockState
+from bear.views import BlockState, EwwServiceWidget
 
 logger = logging.getLogger(__name__)
 
 
-class DPMSBear(LabelBear):
-    def __init__(self, *args, poll_interval=10, **kwargs):
+class DPMSBear(ActionableBear):
+    def __init__(self, *args, widget: EwwServiceWidget, interval=10, **kwargs):
         super().__init__(*args, **kwargs)
-        self.poll_interval = poll_interval
+        self.poll_interval = interval
         self._was_enabled = None
+        self.widget = widget
 
     def is_dpms_enabled(self):
         proc = subprocess.run(["xset", "q"], check=True, stdout=subprocess.PIPE)
@@ -38,21 +39,23 @@ class DPMSBear(LabelBear):
         super().register()
 
         GLib.timeout_add_seconds(
-            priority=GLib.PRIORITY_LOW,
+            priority=GLib.PRIORITY_DEFAULT,
             function=self.update_label,
             interval=self.poll_interval,
         )
+        logger.debug("DPMS polling enabled")
 
     def initialize_view(self):
         self.update_label()
 
     def update_label_enabled(self):
-        self.update_view(self.icon, "", BlockState.idle)
+        self.widget.set_enabled()
 
     def update_label_disabled(self):
-        self.update_view(self.icon_off, "", BlockState.warning)
+        self.widget.set_disabled()
 
     def update_label(self):
+        logger.debug("polling dpms")
         enabled = self.is_dpms_enabled()
 
         if self._was_enabled is None or enabled != self._was_enabled:

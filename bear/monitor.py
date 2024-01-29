@@ -62,7 +62,7 @@ class CPUBear(MonitorBear):
 
         self.view.update(
             icon=self.icon,
-            message=f"{cpu_perc:>3.0f}%",
+            message=f"{cpu_perc:.0f}%",
             state=self.state_for(cpu_perc),
         )
 
@@ -87,6 +87,6 @@ class BearMonitorBear(MonitorBear):
 
         self.view.update(
             icon=self.icon,
-            message=f"{cpu_perc:>3.0f}% {mem_perc:>3.0f}%",
+            message=f"{cpu_perc:>3.0f}% {mem_perc:.0f}%",
             state=self.state_for(cpu_perc),
         )

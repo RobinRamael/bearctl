@@ -21,7 +21,14 @@ from bear.systemd import (
     ServiceLabelBear,
     SystemdManager,
 )
-from bear.views import CombinedLabel, I3StatusBlock, NotificationCtl, PolybarBlock
+from bear.views import (
+    CombinedLabel,
+    EwwController,
+    EwwServiceWidget,
+    EwwStateBlock,
+    I3StatusBlock,
+    NotificationCtl,
+)
 
 
 logger = logging.getLogger()
@@ -36,15 +43,16 @@ def build_bears():
 
     ses_systemd_manager = SystemdManager(bus=session_bus)
 
+    EwwController.bootstrap()
+
     bears = [
-        BatteryBear(
-            bus=session_bus,
-            name="battery",
-            battery=Battery(system_bus),
-            bounds=(10, 30, 100),
-            notifications=NotificationCtl(session_bus=session_bus),
-            view=PolybarBlock("battery"),
-        ),
+        # BatteryBear(
+        #     bus=session_bus,
+        #     name="battery",
+        #     battery=Battery(system_bus),
+        #     bounds=(10, 30, 100),
+        #     notifications=NotificationCtl(session_bus=session_bus),
+        # ),
         BluetoothBear(
             name="bluephones",
             bus=session_bus,
@@ -55,7 +63,6 @@ def build_bears():
             adapter=BluezAdapter(bus=system_bus),
             view=CombinedLabel(
                 I3StatusBlock(block_name="BluephonesBlock", session_bus=session_bus),
-                PolybarBlock(block_name="bluephones"),
             ),
             icon="bluetooth",
         ),
@@ -67,9 +74,7 @@ def build_bears():
             ),
             view=CombinedLabel(
                 I3StatusBlock(block_name="RedshiftBlock", session_bus=session_bus),
-                PolybarBlock("redshift"),
             ),
-            # view=Printer(),
             icon=Icons.EYE,
         ),
         ServiceLabelBear(
@@ -80,7 +85,6 @@ def build_bears():
             ),
             view=CombinedLabel(
                 I3StatusBlock(block_name="DropboxBlock", session_bus=session_bus),
-                PolybarBlock(block_name="dropbox"),
             ),
             # view=Printer(),
             icon=Icons.CLOUD,
@@ -89,24 +93,21 @@ def build_bears():
         DPMSBear(
             name="dpms",
             bus=session_bus,
-            view=CombinedLabel(
-                I3StatusBlock(block_name="DPMSBlock", session_bus=session_bus),
-                PolybarBlock(block_name="dpms"),
-            ),
-            icon=Icons.FLASH,
-            icon_off=Icons.FLASH_OFF,
+            widget=EwwServiceWidget(eww=EwwController(), service_name="dpms"),
+            interval=1,
         ),
         LoadAverageBear(
             name="loadavg",
             bus=session_bus,
-            view=PolybarBlock(block_name="loadavg"),
+            view=EwwStateBlock(eww=EwwController(), block_name="loadavg"),
             levels=(0.3, 0.6, 0.9),
             icon=Icons.GEAR,
+            interval=1,
         ),
         MemoryBear(
             name="memory",
             bus=session_bus,
-            view=PolybarBlock(block_name="memory"),
+            view=EwwStateBlock(eww=EwwController(), block_name="memory"),
             levels=(10, 60, 90),
             interval=1,
             icon=Icons.SD_CARD,
@@ -114,7 +115,7 @@ def build_bears():
         CPUBear(
             name="cpu",
             bus=session_bus,
-            view=PolybarBlock(block_name="cpu"),
+            view=EwwStateBlock(eww=EwwController(), block_name="cpu"),
             levels=(10, 60, 90),
             interval=1,
             icon=Icons.CALCULATOR,
@@ -122,7 +123,7 @@ def build_bears():
         BearMonitorBear(
             name="bear",
             bus=session_bus,
-            view=PolybarBlock(block_name="bear"),
+            view=EwwStateBlock(eww=EwwController(), block_name="bear"),
             levels=(10, 60, 90),
             interval=1,
             icon=Icons.BEAR,

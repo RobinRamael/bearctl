@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 import logging
 import subprocess
+import sys
 from typing import Union
 
 from dasbus.connection import SessionMessageBus
@@ -139,6 +140,57 @@ class PolybarBlock(BearLabel):
         icon = icon or ""
         bg, fg = STATE_COLORS[state]
         self.ipc_send(f"%{{B{bg}}}%{{F{fg}}}{icon}{message}%{{B- F-}}")
+
+
+class EwwController:
+    @staticmethod
+    def bootstrap():
+        # where bear?
+        location = sys.argv[0]
+        logger.info(location)
+
+        # subprocess.run(["eww", "update", f"BEARCTL={}"])
+
+    def update(self, **kwargs):
+        variables = [f"{k}={v}" for k, v in kwargs.items()]
+
+        logger.debug("Updating: %s", ", ".join(variables))
+        subprocess.run(["eww", "update", *variables])
+
+
+class EwwStateBlock(BearLabel):
+    def __init__(self, eww, block_name):
+        self.block_name = block_name
+        self.eww = eww
+
+    def update(self, message: str, icon: str, state: str):
+        self.eww.update(
+            **{
+                f"{self.block_name}_label": message,
+                f"{self.block_name}_state": state,
+            }
+        )
+
+
+EWW_SERVICE_DISABLED = 0
+EWW_SERVICE_ENABLED = 1
+EWW_SERVICE_PAUSED = 2
+
+
+class EwwServiceWidget:
+    def __init__(self, eww: EwwController, service_name: str):
+        super().__init__()
+        self.service_name = service_name
+        self.eww = eww
+
+    def set_paused(self):
+        self.eww.update(**{f"{self.service_name}_state": EWW_SERVICE_PAUSED})
+
+    def set_enabled(self):
+        self.eww.update(**{f"{self.service_name}_state": EWW_SERVICE_ENABLED})
+
+    def set_disabled(self):
+        self.eww.update(**{f"{self.service_name}_state": EWW_SERVICE_DISABLED})
 
 
 class Null(BearLabel):

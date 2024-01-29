@@ -131,12 +131,10 @@ class Bear(metaclass=BearMeta):
         return BearClient(self, proxy)
 
 
-class LabelBear(Bear):
-    def __init__(self, bus, name, icon, view, icon_off=None):
+class ViewableBear(Bear):
+    def __init__(self, bus, name, view):
         super().__init__(bus, name)
         self.view = view
-        self.icon = icon
-        self.icon_off = icon_off or icon
 
     def update_view(self, msg, icon, status):
         self.view.update(msg, icon, status)
@@ -151,6 +149,8 @@ class LabelBear(Bear):
     def initialize_view(self):
         pass
 
+
+class ActionableBear(Bear):
     @dbus_method(str)
     def action(self, name: str):
         logger.info(f"Called {name} action on {self.name}")
@@ -173,3 +173,11 @@ class LabelBear(Bear):
 
     def on_double_left_click(self):
         pass
+
+
+class LabelBear(ViewableBear, ActionableBear):
+    def __init__(self, bus, name, icon, view, icon_off=None):
+        super().__init__(bus, name, view)
+        self.view = view
+        self.icon = icon
+        self.icon_off = icon_off or icon

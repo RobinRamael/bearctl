@@ -85,7 +85,7 @@ class ServiceLabelBear(WidgetBear):
         self.servicectl = servicectl
         self.widget = widget
 
-    def on_property_change(self, _, changed_props, _):
+    def on_property_change(self, _, changed_props, __):
         if "ActiveState" in changed_props:
             logger.info(
                 f"Received changed ActiveState in {self.name}, is {changed_props['ActiveState']}"

@@ -10,6 +10,7 @@ from gi.repository import GLib
 
 from bear.battery import Battery, BatteryBear
 from bear.bluetooth import BluetoothBear, BluezAdapter, DasBusBluetoothDevice
+from bear.director import DirectorBear
 from bear.dpms import DPMSBear
 from bear.exceptions import error_mapper
 from bear.icons import Icons
@@ -34,10 +35,7 @@ from bear.views import (
 logger = logging.getLogger()
 
 
-def build_bears():
-    session_bus = SessionMessageBus(error_mapper=error_mapper)
-    system_bus = SystemMessageBus(error_mapper=error_mapper)
-
+def build_bears(system_bus, session_bus):
     sys_systemd_manager = SystemdManager(bus=system_bus)
     bluetooth_service = ServiceCtl("bluetooth.service", systemd=sys_systemd_manager)
 
@@ -156,8 +154,11 @@ def service(bears, verbosity):
     logger.info("Bootstrapping client into eww")
     EwwController.bootstrap()
 
+    session_bus = SessionMessageBus(error_mapper=error_mapper)
+    system_bus = SystemMessageBus(error_mapper=error_mapper)
+
     logger.info("Building a small but formidable army of bears...")
-    all_bears = build_bears()
+    all_bears = build_bears(system_bus, session_bus)
 
     if bears:
         bears_to_register = [b for b in all_bears if b.name in bears]
@@ -168,6 +169,10 @@ def service(bears, verbosity):
         bear.register()
 
         logger.info(f"Sucessfully initialized {bear.name} bear")
+
+    logger.info("Initializing director bear")
+    director = DirectorBear(session_bus, bears_to_register)
+    director.register()
 
     logger.info("Running loop")
     loop.run()
@@ -185,8 +190,15 @@ def client(name, command, command_args, silent=False):
     else:
         logger.setLevel(logging.INFO)
 
+    session_bus = SessionMessageBus(error_mapper=error_mapper)
+    system_bus = SystemMessageBus(error_mapper=error_mapper)
+
+    bears = build_bears(system_bus, session_bus)
+    logger.info("Initializing director bear")
+    director = DirectorBear(session_bus, bears)
+
     try:
-        bear = next(b for b in build_bears() if b.name == name)
+        bear = next(b for b in [*bears, director] if b.name == name)
     except StopIteration:
         print("who?")
         exit(1)

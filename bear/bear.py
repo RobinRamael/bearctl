@@ -91,7 +91,10 @@ class BearClient:
         if args:
             logger.info(f"transformed args {args} to {transformed_args}")
 
-        return getattr(self.proxy, snake2camel(name))(*transformed_args)
+        camelName = snake2camel(name)
+
+        logger.info("Calling %s on %s", camelName, self.bear.name)
+        return getattr(self.proxy, camelName)(*transformed_args)
 
 
 class Bear(metaclass=BearMeta):
@@ -130,6 +133,9 @@ class Bear(metaclass=BearMeta):
 
         return BearClient(self, proxy)
 
+    def refresh(self):
+        pass
+
 
 class ViewableBear(Bear):
     def __init__(self, bus, name, view):
@@ -150,6 +156,9 @@ class ViewableBear(Bear):
     def initialize_view(self):
         pass
 
+    def refresh(self):
+        self.initialize_view()
+
 
 class WidgetBear(Bear):
     def register(self):
@@ -162,6 +171,9 @@ class WidgetBear(Bear):
 
     def initialize_view(self):
         self.update_widget()
+
+    def refresh(self):
+        self.initialize_view()
 
     def update_widget(self):
         raise NotImplementedError

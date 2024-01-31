@@ -1,3 +1,4 @@
+import logging
 import os
 
 from dasbus.loop import GLib
@@ -6,6 +7,8 @@ import psutil
 from bear.bear import Bear, LabelBear
 from bear.icons import Icons
 from bear.views import BearLabel, BlockState
+
+logger = logging.getLogger(__name__)
 
 
 class MonitorBear(LabelBear):
@@ -23,6 +26,7 @@ class MonitorBear(LabelBear):
 
         def _update():
             self.update()
+            logger.debug("Updating %s monitor from timer")
             return True
 
         GLib.timeout_add_seconds(

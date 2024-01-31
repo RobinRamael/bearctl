@@ -64,17 +64,15 @@ def build_bears(system_bus, session_bus):
             ),
             icon="bluetooth",
         ),
-        # PauseableServiceLabelBear(
-        #     name="redshift",
-        #     bus=session_bus,
-        #     servicectl=ServiceCtl(
-        #         service_name="redshift.service", systemd=ses_systemd_manager
-        #     ),
-        #     view=CombinedLabel(
-        #         I3StatusBlock(block_name="RedshiftBlock", session_bus=session_bus),
-        #     ),
-        #     icon=Icons.EYE,
-        # ),
+        PauseableServiceLabelBear(
+            name="redshift",
+            bus=session_bus,
+            servicectl=ServiceCtl(
+                service_name="redshift.service", systemd=ses_systemd_manager
+            ),
+            widget=EwwServiceWidget(eww=eww_controller, service_name="redshift"),
+            pause_interval=60 * 60,
+        ),
         ServiceLabelBear(
             name="dropbox",
             bus=session_bus,
@@ -93,7 +91,7 @@ def build_bears(system_bus, session_bus):
             name="loadavg",
             bus=session_bus,
             view=EwwStateBlock(eww=eww_controller, block_name="loadavg"),
-            levels=(0.3, 0.6, 0.9),
+            levels=(0.5, 0.8, 0.9),
             icon=Icons.GEAR,
             interval=1,
         ),
@@ -101,7 +99,7 @@ def build_bears(system_bus, session_bus):
             name="memory",
             bus=session_bus,
             view=EwwStateBlock(eww=eww_controller, block_name="memory"),
-            levels=(10, 60, 90),
+            levels=(70, 80, 90),
             interval=1,
             icon=Icons.SD_CARD,
         ),
@@ -109,17 +107,9 @@ def build_bears(system_bus, session_bus):
             name="cpu",
             bus=session_bus,
             view=EwwStateBlock(eww=eww_controller, block_name="cpu"),
-            levels=(10, 60, 90),
+            levels=(50, 80, 90),
             interval=1,
             icon=Icons.CALCULATOR,
-        ),
-        BearMonitorBear(
-            name="bear",
-            bus=session_bus,
-            view=EwwStateBlock(eww=eww_controller, block_name="bear"),
-            levels=(10, 60, 90),
-            interval=1,
-            icon=Icons.BEAR,
         ),
     ]
 
@@ -142,7 +132,9 @@ def cli():
 @click.argument("bears", nargs=-1)
 def service(bears, verbosity):
     handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+    handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(levelname)s:%(name)s - %(message)s")
+    )
     logger = logging.getLogger()
     logger.handlers = [handler]
 

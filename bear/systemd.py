@@ -6,7 +6,7 @@ from dasbus.connection import SessionMessageBus
 from dasbus.error import DBusError
 from gi.repository import GLib
 
-from bear.bear import Bear, LabelBear, WidgetBear, dbus_method
+from bear.bear import ActionableBear, Bear, LabelBear, WidgetBear, dbus_method
 from bear.icons import Icons
 from bear.utils import snake2camel
 from bear.views import BlockState, EwwController, EwwServiceWidget
@@ -132,52 +132,43 @@ class ServiceLabelBear(WidgetBear):
         else:
             self.stop()
 
-    @dbus_method(int)
-    def toggle_pause(self, seconds: int):
-        logger.debug("toggle_pause call received")
-        if self.servicectl.stopped:
-            self.start()
-            logger.info(f"service is stopped pause is {self.paused}, unpauseing.")
-        else:
-            self.pause(seconds)
-
     def on_left_click(self):
         self.toggle()
 
 
-class RevivingThread(threading.Thread):
-    def __init__(self, servicectl, seconds):
-        super().__init__(daemon=True)
-        self.seconds = seconds
-        self.cancel_event = threading.Event()
-        self.servicectl = servicectl
-
-    def run(self):
-        time.sleep(self.seconds)
-        logger.debug("Reviving thread woke up")
-        if not self.cancel_event.is_set():
-            logger.debug("Restarting after pause")
-            self.servicectl.start()
-        else:
-            logger.debug("Reviving thread was cancelled, not restarting the service.")
-
-
-class PauseableServiceLabelBear(ServiceLabelBear):
-    def __init__(self, *args, **kwargs):
+class PauseableServiceLabelBear(ServiceLabelBear, ActionableBear):
+    def __init__(self, *args, pause_interval=60 * 60, **kwargs):
         super().__init__(*args, **kwargs)
         self.paused = False
         self.reviving_thread = None
+        self.pause_interval = pause_interval
+        self.cancel_pause_event = threading.Event()
 
     @dbus_method(int)
     def pause(self, seconds: int):
         if self.servicectl.stopped:
             return
 
+        self.paused = True
+
         self.stop()
 
-        self.reviving_thread = RevivingThread(self.servicectl, seconds)
-        self.reviving_thread.start()
-        self.paused = True
+        def restart():
+            self.paused = False
+
+            if not self.cancel_pause_event.is_set():
+                self.start()
+            else:
+                logger.debug("No restart needed because pause was cancelled")
+
+            return False  # only do this once
+
+        self.cancel_pause_event.clear()
+        GLib.timeout_add_seconds(
+            priority=GLib.PRIORITY_DEFAULT, interval=seconds, function=restart
+        )
+
+        self.update_widget()
 
         logger.debug(f"Paused {self.name} for {seconds} seconds")
 
@@ -185,7 +176,9 @@ class PauseableServiceLabelBear(ServiceLabelBear):
     def start(self):
         super().start()
 
-        self.paused = False
+        if self.paused:
+            self.cancel_pause_event.set()
+            self.paused = False
 
         if self.reviving_thread:
             logger.debug("Cancelling reviving thread.")
@@ -201,10 +194,12 @@ class PauseableServiceLabelBear(ServiceLabelBear):
             self.pause(seconds)
 
     def on_left_click(self):
-        self.toggle_pause(3600)
+        logger.info("pausing")
+        self.toggle_pause(self.pause_interval)
 
-    def update_label(self):
+    def update_widget(self):
         if self.paused:
-            self.view.update_simple_icon(Icons.PAUSE, BlockState.warning)
+            logger.info("setting widget paused")
+            self.widget.set_paused()
         else:
-            super().update_label()
+            super().update_widget()

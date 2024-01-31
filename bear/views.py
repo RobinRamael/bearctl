@@ -182,9 +182,9 @@ class EwwStateBlock(BearLabel):
 
 
 class EwwServiceStates:
-    DISABLED = 0
-    ENABLED = 1
-    PAUSED = 2
+    DISABLED = "disabled"
+    ENABLED = "enabled"
+    PAUSED = "paused"
 
 
 class EwwServiceWidget:

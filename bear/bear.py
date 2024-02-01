@@ -151,7 +151,7 @@ class ViewableBear(Bear):
         try:
             self.initialize_view()
         except Exception as e:
-            logger.critical(f"Failed to initalize view for {self.name}...")
+            logger.exception(f"Failed to initalize view for {self.name}...")
 
     def initialize_view(self):
         pass

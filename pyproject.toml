@@ -12,6 +12,7 @@ dasbus = "^1.7"
 notify2 = "^0.3.1"
 pipewire_python = "0.2.3"
 psutil = "5.9.8"
+i3ipc = "2.2.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^6.0.0"

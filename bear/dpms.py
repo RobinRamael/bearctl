@@ -45,11 +45,11 @@ class DPMSBear(ActionableBear, WidgetBear):
         )
         logger.debug("DPMS polling enabled")
 
-    def update_widget(self):
+    def update_widget(self, refresh=False):
         logger.debug("polling dpms")
         enabled = self.is_dpms_enabled()
 
-        if self._was_enabled is None or enabled != self._was_enabled:
+        if refresh or self._was_enabled is None or enabled != self._was_enabled:
             logger.info(f"updating label enabled={enabled}, cache={self._was_enabled}")
             if enabled:
                 self.widget.set_enabled()
@@ -85,3 +85,6 @@ class DPMSBear(ActionableBear, WidgetBear):
 
     def on_left_click(self):
         self.toggle()
+
+    def refresh(self):
+        self.update_widget(refresh=True)

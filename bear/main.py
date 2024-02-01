@@ -13,9 +13,11 @@ from bear.bluetooth import BluetoothBear, BluezAdapter, DasBusBluetoothDevice
 from bear.director import DirectorBear
 from bear.dpms import DPMSBear
 from bear.exceptions import error_mapper
+from bear.i3 import I3Bear
 from bear.icons import Icons
 from bear.lorri import LorriBear
 from bear.monitor import BearMonitorBear, CPUBear, LoadAverageBear, MemoryBear
+from bear.music import MusicBear
 from bear.systemd import (
     PauseableServiceLabelBear,
     ServiceCtl,
@@ -27,6 +29,7 @@ from bear.views import (
     EwwController,
     EwwServiceWidget,
     EwwStateBlock,
+    EwwVariable,
     I3StatusBlock,
     NotificationCtl,
 )
@@ -110,6 +113,15 @@ def build_bears(system_bus, session_bus):
             levels=(50, 80, 90),
             interval=1,
             icon=Icons.CALCULATOR,
+        ),
+        I3Bear(
+            name="i3",
+            bus=session_bus,
+            eww_title_var=EwwVariable(eww=eww_controller, name="i3_title"),
+        ),
+        MusicBear(
+            name="music",
+            bus=session_bus,
         ),
     ]
 

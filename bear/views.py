@@ -167,6 +167,15 @@ class EwwController:
         subprocess.run(["eww", "update", *variables])
 
 
+class EwwVariable:
+    def __init__(self, eww, name):
+        self.eww = eww
+        self.name = name
+
+    def set(self, value):
+        self.eww.update(**{self.name: value})
+
+
 class EwwStateBlock(BearLabel):
     def __init__(self, eww, block_name):
         self.block_name = block_name

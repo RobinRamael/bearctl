@@ -5,9 +5,8 @@ import time
 
 from gi.repository import GLib
 
-from bear.bear import ActionableBear, LabelBear, WidgetBear, dbus_method
-from bear.icons import Icons
-from bear.views import BlockState, EwwServiceWidget
+from bear.bear import ActionableBear, WidgetBear, dbus_method
+from bear.eww import EwwServiceWidget
 
 logger = logging.getLogger(__name__)
 

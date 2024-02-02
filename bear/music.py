@@ -6,7 +6,7 @@ from typing import Any, Callable, List, Optional
 from gi.repository import GLib
 
 from bear.bear import Bear
-from bear.views import EwwVariable
+from bear.eww import EwwVariable
 
 
 logger = logging.getLogger(__name__)

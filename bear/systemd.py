@@ -7,9 +7,9 @@ from dasbus.error import DBusError
 from gi.repository import GLib
 
 from bear.bear import ActionableBear, Bear, LabelBear, WidgetBear, dbus_method
+from bear.eww import EwwController, EwwServiceWidget
 from bear.icons import Icons
 from bear.utils import snake2camel
-from bear.views import BlockState, EwwController, EwwServiceWidget
 
 SYSTEMD_BUS_NAME = "org.freedesktop.systemd1"
 SYSTEMD_PATH = "/org/freedesktop/systemd1"

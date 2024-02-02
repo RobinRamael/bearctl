@@ -12,6 +12,7 @@ from bear.battery import Battery, BatteryBear
 from bear.bluetooth import BluetoothBear, BluezAdapter, DasBusBluetoothDevice
 from bear.director import DirectorBear
 from bear.dpms import DPMSBear
+from bear.eww import EwwController, EwwServiceWidget, EwwStateBlock, EwwVariable
 from bear.exceptions import error_mapper
 from bear.i3 import I3Bear
 from bear.icons import Icons
@@ -24,15 +25,7 @@ from bear.systemd import (
     ServiceLabelBear,
     SystemdManager,
 )
-from bear.views import (
-    CombinedLabel,
-    EwwController,
-    EwwServiceWidget,
-    EwwStateBlock,
-    EwwVariable,
-    I3StatusBlock,
-    NotificationCtl,
-)
+from bear.views import CombinedLabel, I3StatusBlock, NotificationCtl
 
 
 logger = logging.getLogger()

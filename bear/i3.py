@@ -5,8 +5,8 @@ from typing import Optional
 from gi.repository import GLib
 from i3ipc import Connection, Event
 
-from bear.bear import Bear, WidgetBear
-from bear.views import EwwVariable
+from bear.bear import Bear
+from bear.eww import EwwVariable
 
 logger = logging.getLogger()
 

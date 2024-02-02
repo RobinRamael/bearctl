@@ -22,11 +22,12 @@ MP2_PLAYER_OBJECT_PATH = "/org/mpris/MediaPlayer2"
 
 
 @dataclass
-class TrackMetadata:
+class TrackData:
     title: Optional[str]
     album: Optional[str]
     artists: List[str]
     art_url: Optional[str]
+    playback_status: Optional[str]
 
     def as_json(self):
         return json.dumps(
@@ -35,6 +36,7 @@ class TrackMetadata:
                 "artist": ", ".join(self.artists),
                 "album": self.album,
                 "art_url": self.art_url,
+                "playback_status": self.playback_status,
             }
         )
 
@@ -43,6 +45,7 @@ class Player:
     def __init__(self, proxy):
         self.proxy = proxy
         self.listeners = []
+        self.last_data: Optional[TrackData] = None
 
     @property
     def metadata(self):
@@ -50,20 +53,39 @@ class Player:
 
     def on_metadata_change(self, metadata: dict):
         logger.info("MPRIS metadata change received")
-        track = TrackMetadata(
+        track = TrackData(
             title=metadata.get("xesam:title", None),
             album=metadata.get("xesam:album", None),
             artists=metadata.get("xesam:artist", []),
             art_url=metadata.get("mpris:artUrl", None),
+            playback_status=self.last_data.playback_status if self.last_data else None,
         )
+
+        self.last_data = track
 
         for listener in self.listeners:
             listener(track)
 
-    def listen_for_metadata_changes(self):
+    def on_playback_status_change(self, status: str):
+        logger.info("MPRIS playback status change received")
+        track = TrackData(
+            title=self.last_data.title,
+            album=self.last_data.album,
+            artists=self.last_data.artists,
+            art_url=self.last_data.art_url,
+            playback_status=status.lower(),
+        )
+
+        self.last_data = track
+        for listener in self.listeners:
+            listener(track)
+
+    def listen_for_changes(self):
         def listener(_, changed_props, __):
             if "Metadata" in changed_props:
                 self.on_metadata_change(changed_props["Metadata"].unpack())
+            if "PlaybackStatus" in changed_props:
+                self.on_playback_status_change(changed_props["PlaybackStatus"].unpack())
 
         self.proxy.PropertiesChanged.connect(listener)
 
@@ -75,7 +97,7 @@ class Player:
             priority=GLib.PRIORITY_DEFAULT,
         )
 
-    def register_metadata_listener(self, f: Callable[[TrackMetadata], Any]):
+    def register_listener(self, f: Callable[[TrackData], Any]):
         self.listeners.append(f)
 
 
@@ -125,11 +147,11 @@ class MPRISClient:
         logger.info("Found player %s", name)
         player = Player(proxy)
 
-        player.register_metadata_listener(self.on_metadata_change)
-        player.listen_for_metadata_changes()
+        player.register_listener(self.on_player_change)
+        player.listen_for_changes()
         self.players[name] = player
 
-    def on_metadata_change(self, track: TrackMetadata):
+    def on_player_change(self, track: TrackData):
         logger.debug("Track changed: %s", track)
         if track != self.last_change:
             self.last_change = track
@@ -147,7 +169,7 @@ class MPRISClient:
                 "Did not recognize player with name %s when it dissappeared", name
             )
 
-    def register_metadata_listener(self, f: Callable[[TrackMetadata], Any]):
+    def register_listener(self, f: Callable[[TrackData], Any]):
         self.listeners.append(f)
 
 
@@ -159,9 +181,9 @@ class MusicBear(Bear):
 
     def register(self):
         super().register()
-        self.client.register_metadata_listener(self.on_metadata_change)
+        self.client.register_listener(self.on_player_change)
         self.client.register()
 
-    def on_metadata_change(self, track: TrackMetadata):
+    def on_player_change(self, track: TrackData):
         logger.info("bear listening to: %s", track)
         self.eww_track_variable.set(track.as_json())

@@ -165,12 +165,18 @@ class EwwLogsListener:
         while True:
             line: str = proc.stdout.readline().decode()
 
-            # flush out lines that were generated before we started listening
-            if datetime.fromisoformat(line.strip().split()[0]) < listen_start:
-                continue
+            try:
+                # flush out lines that were generated before we started listening
+                if datetime.fromisoformat(line.strip().split()[0]) < listen_start:
+                    continue
 
-            if EWW_RELOAD_MATCH in line:
-                self.on_reload()
+                if EWW_RELOAD_MATCH in line:
+                    self.on_reload()
+            except Exception as e:
+                logger.debug(
+                    "error while parsing eww output, ignoring and waiting for next line...",
+                    exc_info=True,
+                )
 
     def add_handler(self, handler):
         self.handlers.append(handler)

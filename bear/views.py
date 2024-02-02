@@ -1,9 +1,11 @@
 from abc import ABC, abstractmethod
+from datetime import datetime
 import logging
 import os
 import subprocess
 import sys
-from typing import Union
+from threading import Thread
+from typing import Any, Callable, List, Union
 
 from dasbus.connection import SessionMessageBus
 from dasbus.error import DBusError
@@ -11,6 +13,9 @@ from dasbus.typing import Variant
 from gi.repository import GLib
 
 BLINK_LENGTH_SECONDS = 1
+
+
+logger = logging.getLogger(__name__)
 
 
 class BearLabel(ABC):
@@ -52,9 +57,6 @@ class CombinedLabel(BearLabel):
 
 
 POSSIBLE_I3_STATUS_NAMES = ["rs.i3status", "rs.i3status.bottom", "rs.i3status.top"]
-
-
-logger = logging.getLogger(__name__)
 
 
 class BlockState:
@@ -143,9 +145,47 @@ class PolybarBlock(BearLabel):
         self.ipc_send(f"%{{B{bg}}}%{{F{fg}}}{icon}{message}%{{B- F-}}")
 
 
+EWW_RELOAD_MATCH = "Reloaded config successfully"
+
+
+class EwwLogsListener:
+    def __init__(
+        self,
+    ):
+        self.handlers: List[Callable[[], Any]] = []
+
+    def listen(self):
+        Thread(target=self._listen, daemon=True).start()
+
+    def _listen(self):
+        proc = subprocess.Popen(["eww", "logs"], stdout=subprocess.PIPE)
+
+        listen_start = datetime.now().astimezone()
+
+        while True:
+            line: str = proc.stdout.readline().decode()
+
+            # flush out lines that were generated before we started listening
+            if datetime.fromisoformat(line.strip().split()[0]) < listen_start:
+                continue
+
+            if EWW_RELOAD_MATCH in line:
+                self.on_reload()
+
+    def add_handler(self, handler):
+        self.handlers.append(handler)
+
+    def on_reload(self):
+        logger.info("eww reloaded, notifying handlers")
+        for h in self.handlers:
+            h()
+
+
 class EwwController:
-    @staticmethod
-    def bootstrap():
+    def __init__(self):
+        self.listener = EwwLogsListener()
+
+    def bootstrap(self):
         try:
             location = os.environ["BEARCTL_EXECUTABLE"]
             logger.debug("Found %s in env var", location)
@@ -160,34 +200,52 @@ class EwwController:
         subprocess.run(["eww", "update", f"BEARCTL={location}"])
         logger.info("Bootstrapped %s into eww variable", location)
 
+    def listen_for_reloads(self):
+        self.listener.listen()
+
     def update(self, **kwargs):
         variables = [f"{k}={v}" for k, v in kwargs.items()]
 
         logger.debug("Updating: %s", ", ".join(variables))
         subprocess.run(["eww", "update", *variables])
 
+    def var(self, name):
+        v = EwwVariable(self, name)
+        self.listener.add_handler(v.refresh)
+        return v
+
 
 class EwwVariable:
     def __init__(self, eww, name):
         self.eww = eww
         self.name = name
+        self.last_value = None
+        self.set_at_least_once = False
 
     def set(self, value):
+        self.set_at_least_once = True
+        self.last_value = value
         self.eww.update(**{self.name: value})
+
+    def refresh(self):
+        if self.set_at_least_once:
+            logger.info("Refreshing eww variable %s=%s", self.name, self.last_value)
+            self.set(self.last_value)
+
+        else:
+            logger.info("%s was never set, not refreshing", self.name)
 
 
 class EwwStateBlock(BearLabel):
     def __init__(self, eww, block_name):
         self.block_name = block_name
         self.eww = eww
+        self.label = eww.var(f"{self.block_name}_label")
+        self.state = eww.var(f"{self.block_name}_state")
 
     def update(self, message: str, icon: str, state: str):
-        self.eww.update(
-            **{
-                f"{self.block_name}_label": message,
-                f"{self.block_name}_state": state,
-            }
-        )
+        self.label.set(message)
+        self.state.set(state)
 
 
 class EwwServiceStates:
@@ -201,15 +259,16 @@ class EwwServiceWidget:
         super().__init__()
         self.service_name = service_name
         self.eww = eww
+        self.state_var = eww.var(f"{self.service_name}_state")
 
     def set_paused(self):
-        self.eww.update(**{f"{self.service_name}_state": EwwServiceStates.PAUSED})
+        self.state_var.set(EwwServiceStates.PAUSED)
 
     def set_enabled(self):
-        self.eww.update(**{f"{self.service_name}_state": EwwServiceStates.ENABLED})
+        self.state_var.set(EwwServiceStates.ENABLED)
 
     def set_disabled(self):
-        self.eww.update(**{f"{self.service_name}_state": EwwServiceStates.DISABLED})
+        self.state_var.set(EwwServiceStates.DISABLED)
 
 
 class Null(BearLabel):

@@ -1,13 +1,15 @@
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+import json
 import logging
 from typing import Any, Callable, List, Optional
 
 from gi.repository import GLib
 
 from bear.bear import Bear
+from bear.views import EwwVariable
 
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 class NoCurrentService(Exception):
@@ -26,12 +28,21 @@ class TrackMetadata:
     artists: List[str]
     art_url: Optional[str]
 
+    def as_json(self):
+        return json.dumps(
+            {
+                "title": self.title,
+                "artist": ", ".join(self.artists),
+                "album": self.album,
+                "art_url": self.art_url,
+            }
+        )
+
 
 class Player:
     def __init__(self, proxy):
         self.proxy = proxy
         self.listeners = []
-        self.last_change = None
 
     @property
     def metadata(self):
@@ -46,10 +57,8 @@ class Player:
             art_url=metadata.get("mpris:artUrl", None),
         )
 
-        if track != self.last_change:
-            self.last_change = track
-            for listener in self.listeners:
-                listener(track)
+        for listener in self.listeners:
+            listener(track)
 
     def listen_for_metadata_changes(self):
         def listener(_, changed_props, __):
@@ -75,6 +84,7 @@ class MPRISClient:
         self.bus = bus
         self.players = {}
         self.listeners = []
+        self.last_change = None
 
     def register(self):
         # are there already players running?
@@ -120,8 +130,13 @@ class MPRISClient:
         self.players[name] = player
 
     def on_metadata_change(self, track: TrackMetadata):
-        for listener in self.listeners:
-            listener(track)
+        logger.debug("Track changed: %s", track)
+        if track != self.last_change:
+            self.last_change = track
+            for listener in self.listeners:
+                listener(track)
+        else:
+            logger.info("Is duplicate, ignoring...")
 
     def on_player_loss(self, name):
         try:
@@ -137,9 +152,10 @@ class MPRISClient:
 
 
 class MusicBear(Bear):
-    def __init__(self, bus, name: str):
+    def __init__(self, bus, name: str, eww_track_variable: EwwVariable):
         super().__init__(bus, name)
         self.client = MPRISClient(bus)
+        self.eww_track_variable = eww_track_variable
 
     def register(self):
         super().register()
@@ -147,4 +163,5 @@ class MusicBear(Bear):
         self.client.register()
 
     def on_metadata_change(self, track: TrackMetadata):
-        pass
+        logger.info("bear listening to: %s", track)
+        self.eww_track_variable.set(track.as_json())

@@ -38,13 +38,11 @@ from bear.views import (
 logger = logging.getLogger()
 
 
-def build_bears(system_bus, session_bus):
+def build_bears(system_bus, session_bus, eww):
     sys_systemd_manager = SystemdManager(bus=system_bus)
     bluetooth_service = ServiceCtl("bluetooth.service", systemd=sys_systemd_manager)
 
     ses_systemd_manager = SystemdManager(bus=session_bus)
-
-    eww_controller = EwwController()
 
     bears = [
         # BatteryBear(
@@ -73,7 +71,7 @@ def build_bears(system_bus, session_bus):
             servicectl=ServiceCtl(
                 service_name="redshift.service", systemd=ses_systemd_manager
             ),
-            widget=EwwServiceWidget(eww=eww_controller, service_name="redshift"),
+            widget=EwwServiceWidget(eww=eww, service_name="redshift"),
             pause_interval=60 * 60,
         ),
         ServiceLabelBear(
@@ -82,18 +80,18 @@ def build_bears(system_bus, session_bus):
             servicectl=ServiceCtl(
                 service_name="dropbox.service", systemd=ses_systemd_manager
             ),
-            widget=EwwServiceWidget(eww=eww_controller, service_name="dropbox"),
+            widget=EwwServiceWidget(eww=eww, service_name="dropbox"),
         ),
         DPMSBear(
             name="dpms",
             bus=session_bus,
-            widget=EwwServiceWidget(eww=eww_controller, service_name="dpms"),
+            widget=EwwServiceWidget(eww=eww, service_name="dpms"),
             interval=1,
         ),
         LoadAverageBear(
             name="loadavg",
             bus=session_bus,
-            view=EwwStateBlock(eww=eww_controller, block_name="loadavg"),
+            view=EwwStateBlock(eww=eww, block_name="loadavg"),
             levels=(0.5, 0.8, 0.9),
             icon=Icons.GEAR,
             interval=1,
@@ -101,7 +99,7 @@ def build_bears(system_bus, session_bus):
         MemoryBear(
             name="memory",
             bus=session_bus,
-            view=EwwStateBlock(eww=eww_controller, block_name="memory"),
+            view=EwwStateBlock(eww=eww, block_name="memory"),
             levels=(70, 80, 90),
             interval=1,
             icon=Icons.SD_CARD,
@@ -109,7 +107,7 @@ def build_bears(system_bus, session_bus):
         CPUBear(
             name="cpu",
             bus=session_bus,
-            view=EwwStateBlock(eww=eww_controller, block_name="cpu"),
+            view=EwwStateBlock(eww=eww, block_name="cpu"),
             levels=(50, 80, 90),
             interval=1,
             icon=Icons.CALCULATOR,
@@ -117,11 +115,12 @@ def build_bears(system_bus, session_bus):
         I3Bear(
             name="i3",
             bus=session_bus,
-            eww_title_var=EwwVariable(eww=eww_controller, name="i3_title"),
+            eww_title_var=eww.var(name="i3_title"),
         ),
         MusicBear(
             name="music",
             bus=session_bus,
+            eww_track_variable=eww.var(name="mpris_track"),
         ),
     ]
 
@@ -155,14 +154,13 @@ def service(bears, verbosity):
     logger.info("Starting GLib main loop")
     loop = GLib.MainLoop()
 
-    logger.info("Bootstrapping client into eww")
-    EwwController.bootstrap()
+    eww = EwwController()
 
     session_bus = SessionMessageBus(error_mapper=error_mapper)
     system_bus = SystemMessageBus(error_mapper=error_mapper)
 
     logger.info("Building a small but formidable army of bears...")
-    all_bears = build_bears(system_bus, session_bus)
+    all_bears = build_bears(system_bus, session_bus, eww)
 
     if bears:
         bears_to_register = [b for b in all_bears if b.name in bears]
@@ -177,6 +175,12 @@ def service(bears, verbosity):
     logger.info("Initializing director bear")
     director = DirectorBear(session_bus, bears_to_register)
     director.register()
+
+    logger.info("Bootstrapping client into eww")
+    eww.bootstrap()
+
+    logger.info("Listen for eww reloads")
+    eww.listen_for_reloads()
 
     logger.info("Running loop")
     loop.run()

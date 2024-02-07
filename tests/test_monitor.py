@@ -9,35 +9,28 @@ from bear.views import BlockState
 @pytest.fixture
 def load_avg_bear(mocker):
     mocker.patch("os.cpu_count", return_value=4)
-    return LoadAverageBear(
-        name="loadavg",
-        bus=Mock(),
-        view=Mock(),
-        interval=5,
-        levels=(0.3, 0.6, 0.9),
-        icon=Mock(),
+    bear = LoadAverageBear(bus=Mock())
+    bear.levels = (
+        2.3,
+        4.6,
+        6.9,
     )
+    return bear
 
 
-def test_warn_avg(load_avg_bear, mocker):
-    mocker.patch("os.getloadavg", return_value=(2.5, 1, 1))
+def test_warn_avg(load_avg_bear: LoadAverageBear, mocker):
+    mocker.patch("os.getloadavg", return_value=(5.5, 1, 1))
 
-    load_avg_bear.update()
+    load_avg_bear.metric._do_poll()
+    context = load_avg_bear.build_context()
 
-    load_avg_bear.view.update.assert_called_once_with(
-        message=ANY,
-        state=BlockState.warning,
-        icon=ANY,
-    )
+    assert context["state"] == BlockState.warning
 
 
 def test_low_avg(load_avg_bear, mocker):
-    mocker.patch("os.getloadavg", return_value=(0.3, 1, 1))
+    mocker.patch("os.getloadavg", return_value=(7.5, 1, 1))
 
-    load_avg_bear.update()
+    load_avg_bear.metric._do_poll()
+    context = load_avg_bear.build_context()
 
-    load_avg_bear.view.update.assert_called_once_with(
-        message=ANY,
-        state=BlockState.idle,
-        icon=ANY,
-    )
+    assert context["state"] == BlockState.error

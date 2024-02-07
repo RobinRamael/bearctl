@@ -1,89 +1,78 @@
+from collections import namedtuple
 import logging
 import subprocess
-import threading
-import time
 
 from gi.repository import GLib
 
-from bear.bear import ActionableBear, WidgetBear, dbus_method
-from bear.eww import EwwServiceWidget
+from bear.bear import ActionableBear, bears, dbus_method
+from bear.eww import EwwPrefixView
+from bear.poke import PollingPoke
+from bear.systemd import ServiceStates
 
 logger = logging.getLogger(__name__)
 
 
-class DPMSBear(ActionableBear, WidgetBear):
-    def __init__(self, *args, widget: EwwServiceWidget, interval=10, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.poll_interval = interval
-        self._was_enabled = None
-        self.widget = widget
+class DPMSPoke(PollingPoke):
+    single_value = False
 
-    def is_dpms_enabled(self):
+    def poll(self):
         proc = subprocess.run(["xset", "q"], check=True, stdout=subprocess.PIPE)
 
         for line in proc.stdout.decode().split("\n")[::-1]:
             if "DPMS is" in line:
                 line = line.strip()
                 if line == "DPMS is Disabled":
-                    return False
+                    return {"enabled": False}
                 elif line == "DPMS is Enabled":
-                    return True
+                    return {"enabled": True}
                 else:
                     raise Exception("Could not parse xset output")
 
         else:
             raise Exception("Unable to determine DPMS state, was not in xset output")
 
-    def register(self):
-        super().register()
+    def enable(self):
+        logger.debug("enabling dpms")
 
-        GLib.timeout_add_seconds(
-            priority=GLib.PRIORITY_DEFAULT,
-            function=self.update_widget,
-            interval=self.poll_interval,
-        )
-        logger.debug("DPMS polling enabled")
+        def _enable():
+            subprocess.run(["xset", "+dpms"], check=True)
+            logger.info("dpms successfully enabled")
 
-    def update_widget(self, refresh=False):
-        logger.debug("polling dpms")
-        enabled = self.is_dpms_enabled()
+        GLib.idle_add(_enable, priority=GLib.PRIORITY_DEFAULT)
 
-        if refresh or self._was_enabled is None or enabled != self._was_enabled:
-            logger.info(f"updating label enabled={enabled}, cache={self._was_enabled}")
-            if enabled:
-                self.widget.set_enabled()
-            else:
-                self.widget.set_disabled()
+        self.set_data({"enabled": True})
 
-        else:
-            logger.debug(
-                f"not updating label from poll thread: enabled={enabled}, cache={self._was_enabled}"
-            )
+    def disable(self):
+        logger.debug("disabling dpms")
 
-        self._was_enabled = enabled
+        def _disable():
+            subprocess.run(["xset", "s", "off", "-dpms"], check=True)
+            logger.info("dpms successfully enabled")
 
-    def enable_dpms(self):
-        logger.info("enabling dpms")
-        subprocess.run(["xset", "+dpms"], check=True)
-        self.widget.set_enabled()
+        GLib.idle_add(_disable, priority=GLib.PRIORITY_DEFAULT)
 
-    def disable_dpms(self):
-        logger.info("disabling dpms")
-        subprocess.run(["xset", "s", "off", "-dpms"], check=True)
-        self.widget.set_disabled()
+        self.set_data({"enabled": False})
+
+
+@bears.recruit
+class DPMSBear(ActionableBear):
+    name = "dpms"
+    dpms = DPMSPoke(interval=5)
+    view = EwwPrefixView(var_names=["state"])
+
+    def get_extra_context(self):
+        return {
+            "state": ServiceStates.ENABLED
+            if self.dpms.data["enabled"]
+            else ServiceStates.DISABLED
+        }
 
     @dbus_method()
     def toggle(self):
-        def _toggle():
-            if self.is_dpms_enabled():
-                self.disable_dpms()
-            else:
-                self.enable_dpms()
-
-        GLib.idle_add(_toggle, priority=GLib.PRIORITY_HIGH_IDLE)
+        if self.dpms.data["enabled"]:
+            self.dpms.disable()
+        else:
+            self.dpms.enable()
 
     def on_left_click(self):
         self.toggle()
-
-    def refresh(self):
-        self.update_widget(refresh=True)

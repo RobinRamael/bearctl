@@ -15,6 +15,8 @@ def assert_xml_equivalent(result, expected):
 
 def test_xml():
     class TestBear(Bear):
+        name = "test"
+
         @dbus_method()
         def homti(self):
             pass
@@ -23,7 +25,7 @@ def test_xml():
         def tom(self):
             pass
 
-    bear = TestBear(bus=Mock(), name="test")
+    bear = TestBear(bus=Mock())
     expected_xml = """
         <node>
             <interface name="org.robinramael.bear.TestBear">
@@ -37,13 +39,14 @@ def test_xml():
 
 def test_xml_with_args():
     class TestBear(Bear):
+        name = "test"
+
         @dbus_method()
         def homti(self, n: int, name: str):
             pass
 
     bear = TestBear(
         bus=Mock(),
-        name="test",
     )
     expected_xml = """
         <node>

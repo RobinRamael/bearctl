@@ -4,11 +4,11 @@ import os
 import subprocess
 import sys
 from threading import Thread
-from typing import Any, Callable, List
+from typing import Any, Callable, Dict, List, Optional
 
 from gi.repository import GLib
 
-from bear.views import BearLabel
+from bear.bear import Bear, BearView
 
 EWW_RELOAD_MATCH = "Reloaded config successfully"
 
@@ -58,6 +58,9 @@ class EwwController:
     def __init__(self):
         self.listener = EwwLogsListener()
 
+    def init(self):
+        pass
+
     def bootstrap(self):
         try:
             location = os.environ["BEARCTL_EXECUTABLE"]
@@ -88,6 +91,9 @@ class EwwController:
         return v
 
 
+eww = EwwController()
+
+
 class EwwVariable:
     def __init__(self, eww, name):
         self.eww = eww
@@ -96,9 +102,12 @@ class EwwVariable:
         self.set_at_least_once = False
 
     def set(self, value):
+        self._set_no_update(value)
+        self.eww.update(**{self.name: value})
+
+    def _set_no_update(self, value):
         self.set_at_least_once = True
         self.last_value = value
-        self.eww.update(**{self.name: value})
 
     def refresh(self):
         if self.set_at_least_once:
@@ -109,78 +118,35 @@ class EwwVariable:
             logger.info("%s was never set, not refreshing", self.name)
 
 
-class EwwStateBlock(BearLabel):
-    def __init__(self, eww, block_name):
-        self.block_name = block_name
-        self.eww = eww
-        self.label = eww.var(f"{self.block_name}_label")
-        self.state = eww.var(f"{self.block_name}_state")
+class EwwPrefixView(BearView):
+    variables: Dict[str, EwwVariable]
 
-    def update(self, message: str, icon: str, state: str):
-        self.label.set(message)
-        self.state.set(state)
+    def __init__(
+        self, prefix: Optional[str] = None, var_names: Optional[List[str]] = None
+    ):
+        self.prefix = prefix
+        logger.info("setting prefix to %s", prefix)
+        self.eww: EwwController = eww or EwwController()
+        if not var_names:
+            raise TypeError("Missing argument var_names")
+        self.var_names = var_names
 
+    def register(self, bear: Bear):
+        super().register(bear)
+        if not self.prefix:
+            logger.info("setting prefix to %s", bear.name)
+            self.prefix = bear.name
 
-class EwwServiceStates:
-    DISABLED = "disabled"
-    ENABLED = "enabled"
-    PAUSED = "paused"
+        self.variables = {
+            name: eww.var(f"{self.prefix}_{name}") for name in self.var_names
+        }
 
+    def render(self, context: Dict[str, Any]):
+        update = {}
+        for name, variable in self.variables.items():
+            if name in context:
+                new_value = context[name]
+                variable._set_no_update(new_value)
+                update[variable.name] = new_value
 
-class EwwServiceWidget:
-    def __init__(self, eww: EwwController, service_name: str):
-        super().__init__()
-        self.service_name = service_name
-        self.eww = eww
-        self.state_var = eww.var(f"{self.service_name}_state")
-
-    def set_paused(self):
-        self.state_var.set(EwwServiceStates.PAUSED)
-
-    def set_enabled(self):
-        self.state_var.set(EwwServiceStates.ENABLED)
-
-    def set_disabled(self):
-        self.state_var.set(EwwServiceStates.DISABLED)
-
-
-UPOWER_DEVICE_INTERFACE = "org.freedesktop.UPower.Device"
-UPOWER_BUS_NAME = "org.freedesktop.UPower"
-UPOWER_DEVICE_PATH_PREFIX = "/org/freedesktop/UPower/devices/"
-
-
-
-
-# NOT_SET = object()
-
-# class Property:
-#     def __init__(self, name, initial=NOT_SET):
-#         self.name = name
-#         self.initial = initial
-
-
-# class PropertyListener:
-#     def __init__(self, proxy, properties):
-#         self.proxy = proxy
-#         self.properties = properties
-#         self.last_data = {}
-
-#     def register(self):
-#         self.proxy.PropertiesChanged.connect(self.handler)
-
-#     def handler(self, _, changed, __):
-
-#         changed_props = {}
-
-#         for prop in self.properties:
-#             if prop.name in changed:
-#                 prop.name
-
-
-# class BatteryPropertyListener:
-
-#     proxy = Proxy("org.freedesktop.UPower", "/org/freedesktop/UPower/devices/DisplayDevice")
-#     properties = [Property("percentage")]
-
-# class EwwDBusAgent:
-#     def __init__(self, proxy, property_name, ):
+        self.eww.update(**update)

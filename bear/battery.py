@@ -3,7 +3,7 @@ import enum
 import logging
 import subprocess
 
-from bear.bear import Bear
+from bear.bear import Bear, bears
 from bear.icons import Icons
 from bear.views import (
     BearLabel,
@@ -145,7 +145,7 @@ class BatteryNotificationView:
             logger.warning("Unhandled battery state %s", battery_data.state)
 
 
-class BatteryBear(Bear):
+class BatteryBear2(Bear):
     def __init__(
         self,
         bus,
@@ -187,3 +187,16 @@ class BatteryBear(Bear):
         new_data = BatteryData(self.last_data.percentage, state)
         self.on_change(new_data)
         self.last_data = new_data
+
+
+# class BatteryPoker(PropertiesPoker):
+#     def __init__(self, battery_name, property_names=["Percentage", "State"]):
+#         super().__init__(
+#             self.
+#             property_names,
+#         )
+
+
+# @bears.recruit
+# class BatteryBear(Bear):
+#     battery = BatteryPoker("DisplayDevice")

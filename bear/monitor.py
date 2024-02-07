@@ -1,39 +1,22 @@
 import logging
 import os
+from typing import Tuple
 
-from dasbus.loop import GLib
 import psutil
 
-from bear.bear import Bear, LabelBear
-from bear.icons import Icons
-from bear.views import BearLabel, BlockState
+from bear.bear import Bear, bears
+from bear.eww import EwwPrefixView
+from bear.poke import Poke, PollingPoke
+from bear.views import BlockState
 
 logger = logging.getLogger(__name__)
 
 
-class MonitorBear(LabelBear):
-    def __init__(self, *args, levels, interval: int = 5, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.levels = levels
-        self.interval = interval
-
-    def initialize_view(self):
-        self.update()
-
-    def register(self):
-        super().register()
-        self.initialize_view()
-
-        def _update():
-            self.update()
-            logger.debug("Updating %s monitor from timer")
-            return True
-
-        GLib.timeout_add_seconds(
-            priority=GLib.PRIORITY_DEFAULT,
-            function=_update,
-            interval=self.interval,
-        )
+class MonitorBear(Bear):
+    levels: Tuple[float, float, float]
+    metric: Poke
+    view = EwwPrefixView(var_names=["metric", "state"])
+    abstract = True
 
     def state_for(self, val):
         for level, state in zip(
@@ -45,52 +28,35 @@ class MonitorBear(LabelBear):
         else:
             return BlockState.error
 
-    def update(self):
-        raise NotImplementedError
+    def get_extra_context(self):
+        return {"state": self.state_for(self.metric.data)}
 
 
+@bears.recruit
 class LoadAverageBear(MonitorBear):
-    def update(self):
-        m1, m5, _ = os.getloadavg()
+    name = "load_avg"
+    metric = PollingPoke(interval=5, poller=lambda: os.getloadavg())
+    levels = (2, 3.2, 3.6)
 
-        cpu_count = os.cpu_count() or 1
+    def __init__(self, session_bus, system_bus):
+        super().__init__(session_bus, system_bus)
 
-        state = self.state_for(m1 / cpu_count)
+    def get_extra_context(self):
+        return {
+            "state": self.state_for(self.metric.data[0]),
+            "metric": f"{self.metric.data[0]:.1f} {self.metric.data[1]:.1f}",
+        }
 
-        self.view.update(icon=self.icon, message=f"{m1:.1f} {m5:.1f}", state=state)
 
-
+@bears.recruit
 class CPUBear(MonitorBear):
-    def update(self):
-        cpu_perc = psutil.cpu_percent()
-
-        self.view.update(
-            icon=self.icon,
-            message=f"{cpu_perc:.0f}%",
-            state=self.state_for(cpu_perc),
-        )
+    name = "cpu"
+    metric = PollingPoke(interval=1, poller=lambda: psutil.cpu_percent())
+    levels = (50, 80, 90)
 
 
+@bears.recruit
 class MemoryBear(MonitorBear):
-    def update(self):
-        mem_perc = psutil.virtual_memory().percent
-
-        self.view.update(
-            icon=self.icon,
-            message=f"{mem_perc:>3.0f}%",
-            state=self.state_for(mem_perc),
-        )
-
-
-class BearMonitorBear(MonitorBear):
-    def update(self):
-        process = psutil.Process(os.getpid())
-        cpu_perc = process.cpu_percent()
-
-        mem_perc = process.memory_percent()
-
-        self.view.update(
-            icon=self.icon,
-            message=f"{cpu_perc:>3.0f}% {mem_perc:.0f}%",
-            state=self.state_for(cpu_perc),
-        )
+    name = "memory"
+    metric = PollingPoke(interval=1, poller=lambda: psutil.virtual_memory().percent)
+    levels = (50, 80, 90)

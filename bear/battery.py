@@ -3,8 +3,12 @@ import enum
 import logging
 import subprocess
 
-from bear.bear import Bear, bears
+from bear.bear import Bear, BearView, bears
+from bear.eww import EwwPrefixView
 from bear.icons import Icons
+from bear.notifications import NotificationCtl, NotificationIcons, NotificationUrgency
+from bear.poke import PropertiesPoke
+from bear.utils import BearLevel
 
 UPOWER_DEVICE_INTERFACE = "org.freedesktop.UPower.Device"
 UPOWER_BUS_NAME = "org.freedesktop.UPower"
@@ -13,7 +17,7 @@ UPOWER_DEVICE_PATH_PREFIX = "/org/freedesktop/UPower/devices/"
 logger = logging.getLogger(__name__)
 
 
-class BatteryState(enum.Enum):
+class BatteryState:
     UNKNOWN = 0
     CHARGING = 1
     DISCHARGING = 2
@@ -23,88 +27,45 @@ class BatteryState(enum.Enum):
     PENDING_DISCHARGE = 6
 
 
-class Battery:
-    def __init__(self, bus, device_name="DisplayDevice"):
-        self.bus = bus
-        self.device_name = device_name
-
-        self.device = self.bus.get_proxy(UPOWER_BUS_NAME, self.device_path)
-
-    @property
-    def device_path(self):
-        return f"{UPOWER_DEVICE_PATH_PREFIX}{self.device_name}"
-
-    @property
-    def percentage_charged(self):
-        return self.device.Get(UPOWER_DEVICE_INTERFACE, "Percentage").unpack()
-
-    @property
-    def is_discharging(self):
-        return self.state not in (BatteryState.CHARGING, BatteryState.PENDING_CHARGE)
-
-    @property
-    def state(self):
-        return BatteryState(self.device.Get(UPOWER_DEVICE_INTERFACE, "State").unpack())
-
-    def register_percentage_listener(self, f):
-        def listener(_, changed_props, __):
-            if "Percentage" in changed_props:
-                f(changed_props["Percentage"].unpack())
-
-        self.device.PropertiesChanged.connect(listener)
-
-    def register_battery_state_listener(self, f):
-        def listener(_, changed_props, __):
-            if "State" in changed_props:
-                f(BatteryState(changed_props["State"].unpack()))
-
-        self.device.PropertiesChanged.connect(listener)
-
-
 @dataclass
 class BatteryData:
     percentage: int
-    state: BatteryState
+    state: int
+
+    @property
+    def is_charging(self):
+        return self.state in (
+            BatteryState.CHARGING,
+            BatteryState.FULLY_CHARGED,
+        )
 
 
-# class BatteryMonitor:
-#     def __init__(self, view: BearLabel, bounds=(10, 30, 100)):
-#         self.critical_level, self.low_level, self.full_level = bounds
-#         assert self.critical_level <= self.low_level <= self.full_level
-#         self.view = view
+class BatteryPoker(PropertiesPoke):
+    property_names = ["percentage", "state"]
+    interface_name = UPOWER_DEVICE_INTERFACE
+    data_class = BatteryData
 
-#     def block_state_for(self, perc):
-#         if perc > self.low_level:
-#             return BlockState.good
+    def __init__(self, battery_name):
+        super().__init__(use_session_bus=False)
+        self.battery_name = battery_name
 
-#         elif perc > self.critical_level:
-#             return BlockState.warning
-#         else:
-#             return BlockState.error
-
-#     def icon_for(self, data: BatteryData):
-#         if data.state == BatteryState.CHARGING:
-#             icons = Icons.BATTERY_CHARGING_LEVELS
-#             logging.debug("using charging icons")
-#         else:
-#             icons = Icons.BATTERY_LEVELS
-#             logging.debug("using regular icons")
-
-#         return icons[int(data.percentage // (100 / len(icons)))]
-
-#     def on_change(self, battery_data):
-#         self.view.update(
-#             f"{battery_data.percentage:>3.0f}%",  # nothing after comma, pad to length 3
-#             state=self.block_state_for(battery_data.percentage),
-#             icon=self.icon_for(battery_data),
-#         )
+    def get_proxy(self):
+        return self.bus.get_proxy(
+            UPOWER_BUS_NAME, f"{UPOWER_DEVICE_PATH_PREFIX}{self.battery_name}"
+        )
 
 
-class BatteryNotificationView:
-    def __init__(self, notifications, nag_lobound):
-        self.notifications = notifications
+class BatteryNotificationView(BearView):
+    notifications: NotificationCtl
+
+    def __init__(self, nag_lobound):
+        super().__init__()
         self.notification_id = None
         self.nag_lobound = nag_lobound
+
+    def register(self, bear: Bear):
+        super().register(bear)
+        self.notifications = NotificationCtl(bear.session_bus)
 
     def notify(self):
         self.notification_id = self.notifications.notify(
@@ -122,7 +83,9 @@ class BatteryNotificationView:
             logger.info(f"Closed notification with id {self.notification_id}")
             self.notification_id = None
 
-    def on_change(self, battery_data: BatteryData):
+    def render(self, context):
+        battery_data = context["data"]
+
         if battery_data.state in (BatteryState.CHARGING, BatteryState.PENDING_CHARGE):
             self.close_notification()
         elif battery_data.state == BatteryState.DISCHARGING:
@@ -138,58 +101,31 @@ class BatteryNotificationView:
             logger.warning("Unhandled battery state %s", battery_data.state)
 
 
-# class BatteryBear2(Bear):
-#     def __init__(
-#         self,
-#         bus,
-#         name: str,
-#         battery: Battery,
-#         notifications: NotificationCtl,
-#         view: BearLabel,
-#         bounds=(10, 30, 100),
-#     ):
-#         super().__init__(bus, name)
-#         self.battery = battery
-#         self.view = view
+@bears.recruit
+class BatteryBear(Bear):
+    name = "battery"
+    battery = BatteryPoker("DisplayDevice")
+    view = EwwPrefixView(var_names=["is_charging", "icon_name", "percentage", "status"])
+    notification = BatteryNotificationView(nag_lobound=10)
+    levels = (10, 20, 100)
 
-#         self.notifications = BatteryNotificationView(notifications, bounds[0])
-#         self.monitor = BatteryMonitor(view, bounds)
+    def get_extra_context(self):
+        ctx = super().get_extra_context()
 
-#     def register(self):
-#         super().register()
+        ctx["is_charging"] = self.battery.data.is_charging
+        if self.battery.data.percentage == 100:
+            ctx["icon_name"] = "BATTERY_FULL_ICON"
+        else:
+            icon_state = "CHARGING" if self.battery.data.is_charging else "DISCHARGING"
+            icon_idx = int(self.battery.data.percentage // 10)
+            ctx["icon_name"] = f"BATTERY_{icon_state}_ICON_{icon_idx}"
 
-#         self.battery.register_percentage_listener(self.on_percentage_change)
-#         self.battery.register_battery_state_listener(self.on_battery_state_change)
+        ctx["percentage"] = f"{self.battery.data.percentage:.0f}"
 
-#         self.last_data = BatteryData(
-#             self.battery.percentage_charged, self.battery.state
-#         )
+        ctx["status"] = BearLevel.level_for_type_battery(
+            self.battery.data.percentage, self.levels
+        )
 
-#         self.monitor.on_change(self.last_data)
+        ctx["data"] = self.battery.data
 
-#     def on_change(self, battery_data):
-#         self.monitor.on_change(battery_data)
-#         self.notifications.on_change(battery_data)
-
-#     def on_percentage_change(self, perc):
-#         new_data = BatteryData(perc, self.last_data.state)
-#         self.on_change(new_data)
-#         self.last_data = new_data
-
-#     def on_battery_state_change(self, state):
-#         new_data = BatteryData(self.last_data.percentage, state)
-#         self.on_change(new_data)
-#         self.last_data = new_data
-
-
-# class BatteryPoker(PropertiesPoker):
-#     def __init__(self, battery_name, property_names=["Percentage", "State"]):
-#         super().__init__(
-#             self.
-#             property_names,
-#         )
-
-
-# @bears.recruit
-# class BatteryBear(Bear):
-#     battery = BatteryPoker("DisplayDevice")
+        return ctx

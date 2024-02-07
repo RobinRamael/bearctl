@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
-import dataclasses
 import logging
-from typing import Any, Callable, Dict, Generic, Optional, Type, TypeVar
+from typing import Any, Callable, Dict, Generic, List, Optional, Type, TypeVar
 
 from dasbus.connection import ObjectProxy
 from gi.repository import GLib
@@ -65,6 +64,7 @@ class PropertiesPoke(Poke, Generic[T]):
     interface_name: str
     obj_path: str
     service_name: str
+    property_names: List[str] = []  # should be overwritten in implementing class
 
     def __init__(
         self,
@@ -75,7 +75,10 @@ class PropertiesPoke(Poke, Generic[T]):
         use_session_bus=True,
     ):
         super().__init__()
-        self.property_names = property_names or []
+
+        if not self.property_names:
+            self.property_names = property_names or []
+
         self.use_session_bus = use_session_bus
 
         if service_name:
@@ -120,6 +123,11 @@ class PropertiesPoke(Poke, Generic[T]):
         return data
 
     def on_property_change(self, _, changed, __):
+        if not self.property_names:
+            logger.warn(
+                f"Change was detected in {self}, but no property names were set."
+            )
+
         change_detected = False
         for prop in self.property_names:
             try:

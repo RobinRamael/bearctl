@@ -1,39 +1,102 @@
 import logging
 import threading
-from typing import Optional
+from typing import Any, Callable, Optional
 
-from gi.repository import GLib
-from i3ipc import Connection, Event
+import i3ipc
+from psutil import POSIX
 
-from bear.bear import Bear
-from bear.eww import EwwVariable
+from bear.bear import Bear, bears
+from bear.eww import EwwPrefixView, EwwVariable
+from bear.poke import Poke
 
 logger = logging.getLogger()
 
 
-class I3Bear(Bear):
-    def __init__(
-        self,
-        *args,
-        eww_title_var: EwwVariable,
-        i3: Optional[Connection] = None,
-        **kwargs
-    ):
-        super().__init__(*args, **kwargs)
-        self.i3 = i3 or Connection()
-        self.eww_title_var = eww_title_var
+class _I3:
+    connection: Optional[i3ipc.Connection]
 
-    def register(self):
-        super().register()
+    def __init__(self):
+        self.connection = None
+        self.listened_to = False
 
-        self.i3.on(Event.WINDOW_FOCUS, self.on_window_focus)
+    def get_connection(self) -> i3ipc.Connection:
+        if not self.connection:
+            self.connection = i3ipc.Connection()
+        return self.connection
+
+    def on(self, event_type, handler):
+        conn = self.get_connection()
+        conn.on(event_type, handler)
+        self.listened_to = True
+
+    def listen(self):
+        if not self.listened_to:
+            logger.info("Not starting i3 loop because no handlers were set")
+            return
 
         def run_loop():
             logger.info("Starting i3 ipc loop")
-            self.i3.main()
+            self.get_connection().main()
 
         threading.Thread(target=run_loop, daemon=True).start()
 
-    def on_window_focus(self, _, event):
-        window_title = event.ipc_data["container"]["window_properties"]["title"]
-        self.eww_title_var.set(window_title)
+
+i3 = _I3()
+
+
+class I3Poke(Poke):
+    event_type: i3ipc.Event
+
+    def __init__(
+        self,
+        *args,
+        i3: Optional[i3ipc.Connection] = None,
+        event_type=None,
+        data_from_event: Optional[Callable[[i3ipc.Event], Any]] = None,
+        **kwargs
+    ):
+        super().__init__(*args, **kwargs)
+
+        self.data_transform = data_from_event
+
+        if event_type:
+            self.event_type = event_type
+
+    def register(self):
+        super().register()
+        logger.debug("Registered i3 poke")
+
+        i3.on(self.event_type, self.listener)
+
+    def data_from_event(self, event):
+        if self.data_transform:
+            return self.data_transform(event)
+        else:
+            raise TypeError(
+                "No way to get data from i3 event, override data_from_event "
+                "or pass the kwarg into the constructor"
+            )
+
+    def listener(self, _, event):
+        logger.debug("i3 listener triggered")
+        new_data = self.data_from_event(event)
+
+        if self.current_data != new_data:
+            self.current_data = new_data
+            self.poke()
+
+
+def get_title(ev):
+    return {
+        "title": ev.ipc_data["container"]["window_properties"]["title"],
+    }
+
+
+@bears.recruit
+class I3Bear(Bear):
+    name = "i3"
+
+    i3_focus = I3Poke(event_type=i3ipc.Event.WINDOW_FOCUS, data_from_event=get_title)
+    i3_title = I3Poke(event_type=i3ipc.Event.WINDOW_TITLE, data_from_event=get_title)
+
+    view = EwwPrefixView(var_names=["title"])

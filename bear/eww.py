@@ -80,6 +80,10 @@ class EwwController:
         self.listener.listen()
 
     def update(self, **kwargs):
+        if not kwargs:
+            logger.warning("Empty update passed to eww, ignoring.")
+            return
+
         variables = [f"{k}={v}" for k, v in kwargs.items()]
 
         logger.debug("Updating: %s", ", ".join(variables))
@@ -111,7 +115,7 @@ class EwwVariable:
 
     def refresh(self):
         if self.set_at_least_once:
-            logger.info("Refreshing eww variable %s=%s", self.name, self.last_value)
+            logger.debug("Refreshing eww variable %s=%s", self.name, self.last_value)
             self.set(self.last_value)
 
         else:

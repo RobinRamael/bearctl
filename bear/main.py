@@ -4,6 +4,8 @@ import click
 from gi.repository import GLib
 
 from bear.bear import bears
+from bear.eww import eww
+from bear.i3 import i3
 
 logger = logging.getLogger()
 
@@ -121,6 +123,11 @@ def service(bear_names, verbosity):
         bears.initalize_all()
     else:
         bears.initialize_some(bear_names)
+
+    eww.bootstrap()
+    eww.listen_for_reloads()
+
+    i3.listen()
 
     logger.info("Running loop")
     loop.run()

@@ -12,6 +12,7 @@ from typing import Dict, List, Type
 from dasbus.connection import SessionMessageBus, SystemMessageBus
 from dasbus.typing import get_dbus_type
 from dasbus.xml import XMLGenerator as DBusXML
+from gi.repository import GLib
 
 from bear.exceptions import DoubleBearException
 from bear.utils import snake2camel
@@ -193,9 +194,9 @@ class Bear(metaclass=BearMeta):
         context = {}
         for poke in self.pokes:
             poke_data = poke.get_data_dict()
-            overlapping_keys = poke_data.keys() & context.keys()
-            if overlapping_keys:
-                logger.warning("Overlapping keys in poke data: %s", overlapping_keys)
+            # overlapping_keys = poke_data.keys() & context.keys()
+            # if overlapping_keys:
+            #     logger.warning("Overlapping keys in poke data: %s", overlapping_keys)
 
             context.update(poke_data)
 
@@ -281,8 +282,6 @@ class LabelBear(ViewableBear, ActionableBear):
 class BearView(ABC):
     def __set_name__(self, owner: Bear, name):
         owner._class_views.append(self)
-        if not owner.abstract:
-            self.register(owner)
 
     @abstractmethod
     def render(self, context):
@@ -307,6 +306,9 @@ class Bears:
     def initialize(self, bear_name):
         bear = self.bear_classes[bear_name](self.session_bus, self.system_bus)
         bear.register()
+
+        GLib.idle_add(lambda: bear.update(), priority=GLib.PRIORITY_DEFAULT)
+
         self.bears[bear.name] = bear
 
     def initalize_all(self):

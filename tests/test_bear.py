@@ -1,8 +1,12 @@
+import logging
 from unittest.mock import Mock
 
 from lxml import etree, objectify
 
 from bear.bear import Bear, dbus_method
+
+logger = logging.getLogger()
+logger.setLevel(logging.ERROR)
 
 
 def assert_xml_equivalent(result, expected):

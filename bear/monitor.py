@@ -7,16 +7,9 @@ import psutil
 from bear.bear import Bear, bears
 from bear.eww import EwwPrefixView
 from bear.poke import Poke, PollingPoke
+from bear.utils import BearLevel
 
 logger = logging.getLogger(__name__)
-
-
-class BearLevel:
-    good = "good"
-    idle = "idle"
-    info = "info"
-    warning = "warning"
-    error = "critical"
 
 
 class MonitorBear(Bear):
@@ -25,18 +18,8 @@ class MonitorBear(Bear):
     view = EwwPrefixView(var_names=["metric", "state"])
     abstract = True
 
-    def state_for(self, val):
-        for level, state in zip(
-            self.levels, [BearLevel.idle, BearLevel.info, BearLevel.warning]
-        ):
-            if val < level:
-                return state
-
-        else:
-            return BearLevel.error
-
     def get_extra_context(self):
-        return {"state": self.state_for(self.metric.data)}
+        return {"state": BearLevel.level_for(self.metric.data, self.levels)}
 
 
 @bears.recruit
@@ -50,7 +33,7 @@ class LoadAverageBear(MonitorBear):
 
     def get_extra_context(self):
         return {
-            "state": self.state_for(self.metric.data[0]),
+            "state": BearLevel.level_for(self.metric.data[0], self.levels),
             "metric": f"{self.metric.data[0]:.1f} {self.metric.data[1]:.1f}",
         }
 

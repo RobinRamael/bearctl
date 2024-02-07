@@ -7,9 +7,16 @@ import psutil
 from bear.bear import Bear, bears
 from bear.eww import EwwPrefixView
 from bear.poke import Poke, PollingPoke
-from bear.views import BlockState
 
 logger = logging.getLogger(__name__)
+
+
+class BearLevel:
+    good = "good"
+    idle = "idle"
+    info = "info"
+    warning = "warning"
+    error = "critical"
 
 
 class MonitorBear(Bear):
@@ -20,13 +27,13 @@ class MonitorBear(Bear):
 
     def state_for(self, val):
         for level, state in zip(
-            self.levels, [BlockState.idle, BlockState.info, BlockState.warning]
+            self.levels, [BearLevel.idle, BearLevel.info, BearLevel.warning]
         ):
             if val < level:
                 return state
 
         else:
-            return BlockState.error
+            return BearLevel.error
 
     def get_extra_context(self):
         return {"state": self.state_for(self.metric.data)}

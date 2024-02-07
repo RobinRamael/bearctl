@@ -25,7 +25,7 @@ def test_xml():
         def tom(self):
             pass
 
-    bear = TestBear(bus=Mock())
+    bear = TestBear(session_bus=Mock(), system_bus=Mock())
     expected_xml = """
         <node>
             <interface name="org.robinramael.bear.TestBear">
@@ -45,9 +45,7 @@ def test_xml_with_args():
         def homti(self, n: int, name: str):
             pass
 
-    bear = TestBear(
-        bus=Mock(),
-    )
+    bear = TestBear(session_bus=Mock(), system_bus=Mock())
     expected_xml = """
         <node>
             <interface name="org.robinramael.bear.TestBear">

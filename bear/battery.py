@@ -5,13 +5,6 @@ import subprocess
 
 from bear.bear import Bear, bears
 from bear.icons import Icons
-from bear.views import (
-    BearLabel,
-    BlockState,
-    NotificationCtl,
-    NotificationIcons,
-    NotificationUrgency,
-)
 
 UPOWER_DEVICE_INTERFACE = "org.freedesktop.UPower.Device"
 UPOWER_BUS_NAME = "org.freedesktop.UPower"
@@ -74,37 +67,37 @@ class BatteryData:
     state: BatteryState
 
 
-class BatteryMonitor:
-    def __init__(self, view: BearLabel, bounds=(10, 30, 100)):
-        self.critical_level, self.low_level, self.full_level = bounds
-        assert self.critical_level <= self.low_level <= self.full_level
-        self.view = view
+# class BatteryMonitor:
+#     def __init__(self, view: BearLabel, bounds=(10, 30, 100)):
+#         self.critical_level, self.low_level, self.full_level = bounds
+#         assert self.critical_level <= self.low_level <= self.full_level
+#         self.view = view
 
-    def block_state_for(self, perc):
-        if perc > self.low_level:
-            return BlockState.good
+#     def block_state_for(self, perc):
+#         if perc > self.low_level:
+#             return BlockState.good
 
-        elif perc > self.critical_level:
-            return BlockState.warning
-        else:
-            return BlockState.error
+#         elif perc > self.critical_level:
+#             return BlockState.warning
+#         else:
+#             return BlockState.error
 
-    def icon_for(self, data: BatteryData):
-        if data.state == BatteryState.CHARGING:
-            icons = Icons.BATTERY_CHARGING_LEVELS
-            logging.debug("using charging icons")
-        else:
-            icons = Icons.BATTERY_LEVELS
-            logging.debug("using regular icons")
+#     def icon_for(self, data: BatteryData):
+#         if data.state == BatteryState.CHARGING:
+#             icons = Icons.BATTERY_CHARGING_LEVELS
+#             logging.debug("using charging icons")
+#         else:
+#             icons = Icons.BATTERY_LEVELS
+#             logging.debug("using regular icons")
 
-        return icons[int(data.percentage // (100 / len(icons)))]
+#         return icons[int(data.percentage // (100 / len(icons)))]
 
-    def on_change(self, battery_data):
-        self.view.update(
-            f"{battery_data.percentage:>3.0f}%",  # nothing after comma, pad to length 3
-            state=self.block_state_for(battery_data.percentage),
-            icon=self.icon_for(battery_data),
-        )
+#     def on_change(self, battery_data):
+#         self.view.update(
+#             f"{battery_data.percentage:>3.0f}%",  # nothing after comma, pad to length 3
+#             state=self.block_state_for(battery_data.percentage),
+#             icon=self.icon_for(battery_data),
+#         )
 
 
 class BatteryNotificationView:
@@ -145,48 +138,48 @@ class BatteryNotificationView:
             logger.warning("Unhandled battery state %s", battery_data.state)
 
 
-class BatteryBear2(Bear):
-    def __init__(
-        self,
-        bus,
-        name: str,
-        battery: Battery,
-        notifications: NotificationCtl,
-        view: BearLabel,
-        bounds=(10, 30, 100),
-    ):
-        super().__init__(bus, name)
-        self.battery = battery
-        self.view = view
+# class BatteryBear2(Bear):
+#     def __init__(
+#         self,
+#         bus,
+#         name: str,
+#         battery: Battery,
+#         notifications: NotificationCtl,
+#         view: BearLabel,
+#         bounds=(10, 30, 100),
+#     ):
+#         super().__init__(bus, name)
+#         self.battery = battery
+#         self.view = view
 
-        self.notifications = BatteryNotificationView(notifications, bounds[0])
-        self.monitor = BatteryMonitor(view, bounds)
+#         self.notifications = BatteryNotificationView(notifications, bounds[0])
+#         self.monitor = BatteryMonitor(view, bounds)
 
-    def register(self):
-        super().register()
+#     def register(self):
+#         super().register()
 
-        self.battery.register_percentage_listener(self.on_percentage_change)
-        self.battery.register_battery_state_listener(self.on_battery_state_change)
+#         self.battery.register_percentage_listener(self.on_percentage_change)
+#         self.battery.register_battery_state_listener(self.on_battery_state_change)
 
-        self.last_data = BatteryData(
-            self.battery.percentage_charged, self.battery.state
-        )
+#         self.last_data = BatteryData(
+#             self.battery.percentage_charged, self.battery.state
+#         )
 
-        self.monitor.on_change(self.last_data)
+#         self.monitor.on_change(self.last_data)
 
-    def on_change(self, battery_data):
-        self.monitor.on_change(battery_data)
-        self.notifications.on_change(battery_data)
+#     def on_change(self, battery_data):
+#         self.monitor.on_change(battery_data)
+#         self.notifications.on_change(battery_data)
 
-    def on_percentage_change(self, perc):
-        new_data = BatteryData(perc, self.last_data.state)
-        self.on_change(new_data)
-        self.last_data = new_data
+#     def on_percentage_change(self, perc):
+#         new_data = BatteryData(perc, self.last_data.state)
+#         self.on_change(new_data)
+#         self.last_data = new_data
 
-    def on_battery_state_change(self, state):
-        new_data = BatteryData(self.last_data.percentage, state)
-        self.on_change(new_data)
-        self.last_data = new_data
+#     def on_battery_state_change(self, state):
+#         new_data = BatteryData(self.last_data.percentage, state)
+#         self.on_change(new_data)
+#         self.last_data = new_data
 
 
 # class BatteryPoker(PropertiesPoker):

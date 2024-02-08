@@ -43,7 +43,6 @@ class EwwLogsListener:
             except Exception as e:
                 logger.debug(
                     "error while parsing eww output, ignoring and waiting for next line...",
-                    exc_info=True,
                 )
 
     def add_handler(self, handler):

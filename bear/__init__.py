@@ -6,6 +6,7 @@ from . import monitor
 from . import dpms
 from . import i3
 from . import dunst
+from . import music
 
 logger = logging.getLogger()
 handler = logging.StreamHandler()

@@ -8,9 +8,9 @@ from bear.utils import BearLevel
 class DunstBear(Bear):
     name = "dunst"
     dunst = PropertiesPoke(
-        "org.freedesktop.Notifications",
-        "/org/freedesktop/Notifications",
-        "org.dunstproject.cmd0",
+        service_name="org.freedesktop.Notifications",
+        obj_path="/org/freedesktop/Notifications",
+        interface_name="org.dunstproject.cmd0",
         property_names=["paused"],
         capitalize_first=False,
     )
@@ -26,7 +26,8 @@ class DunstBear(Bear):
 
     @dbus_method()
     def toggle_pause(self):
-        if self.dunst.proxy.paused:
-            self.dunst.proxy.paused = False
+        dunst_proxy = self.dunst.get_proxy()
+        if dunst_proxy.paused:
+            dunst_proxy.paused = False
         else:
-            self.dunst.proxy.paused = True
+            dunst_proxy.paused = True

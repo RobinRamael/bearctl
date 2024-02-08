@@ -1,12 +1,15 @@
 from dataclasses import asdict, dataclass
 import json
 import logging
-from typing import Any, Callable, List, Optional
+from os import remove
+import re
+from typing import Any, Callable, Dict, List, Optional
 
 from gi.repository import GLib
 
-from bear.bear import Bear
+from bear.bear import Bear, DebugView, bears
 from bear.eww import EwwVariable
+from bear.poke import DBUSServicePoke, MultiPropertiesPoke
 
 
 logger = logging.getLogger(__name__)
@@ -19,6 +22,41 @@ class NoCurrentService(Exception):
 MP2_BUS_NAME = "org.mpris.MediaPlayer2"
 MP2_PLAYER_INTERFACE = "org.mpris.MediaPlayer2.Player"
 MP2_PLAYER_OBJECT_PATH = "/org/mpris/MediaPlayer2"
+
+
+class MPRISPlayerPropertiesPoke(MultiPropertiesPoke):
+    players = DBUSServicePoke(match_on=MP2_BUS_NAME)
+    interface_name = MP2_PLAYER_INTERFACE
+
+    def __init__(self, property_names=None):
+        super().__init__(property_names=property_names)
+        self.registered_player_names: Dict[str, Any] = {}
+
+    def register(self):
+        super().register()
+        for name in self.players.data["names"]:
+            self.add_proxy(self.bus.get_proxy(name, MP2_PLAYER_OBJECT_PATH))
+
+    def update(self):
+        new_player_name = self.players.data.get("added_service")
+        if new_player_name:
+            logger.info(f"adding player {new_player_name}")
+            self.add_proxy(self.bus.get_proxy(new_player_name, MP2_PLAYER_OBJECT_PATH))
+
+        removed_player_name = self.players.data.get("removed_service")
+        if removed_player_name:
+            logger.info(f"removing player {removed_player_name}")
+            self.remove_proxy(removed_player_name, MP2_PLAYER_OBJECT_PATH)
+
+
+@bears.recruit
+class MusicBear(Bear):
+    name = "music"
+    new_player = MPRISPlayerPropertiesPoke(
+        property_names=["metadata", "playback_status"]
+    )
+
+    # debug = DebugView()
 
 
 @dataclass
@@ -173,7 +211,7 @@ class MPRISClient:
         self.listeners.append(f)
 
 
-class MusicBear(Bear):
+class MusicBear2(Bear):
     def __init__(self, bus, name: str, eww_track_variable: EwwVariable):
         super().__init__(bus, name)
         self.client = MPRISClient(bus)

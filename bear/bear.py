@@ -144,6 +144,8 @@ class Bear(metaclass=BearMeta):
         for poke in self.pokes:
             assert not hasattr(poke, "bear")
             poke.bear = self
+            poke.session_bus = self.session_bus
+            poke.system_bus = self.system_bus
 
         self.views: List[BearView] = self._class_views[:]
         if not self.views:
@@ -289,6 +291,13 @@ class BearView(ABC):
 
     def register(self, bear: Bear):
         pass
+
+
+class DebugView(BearView):
+    def render(self, context):
+        from pprint import pprint
+
+        pprint(context)
 
 
 class Bears:

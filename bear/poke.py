@@ -70,9 +70,10 @@ class PropertiesPoke(Poke, Generic[T]):
         self,
         service_name=None,
         obj_path=None,
+        interface_name=None,
         property_names=None,
-        interface=None,
         use_session_bus=True,
+        capitalize_first=True,
     ):
         super().__init__()
 
@@ -87,8 +88,10 @@ class PropertiesPoke(Poke, Generic[T]):
         if obj_path:
             self.obj_path = obj_path
 
-        if interface:
-            self.interface = interface
+        if interface_name:
+            self.interface_name = interface_name
+
+        self.capitalize_first = capitalize_first
 
     @property
     def bus(self):
@@ -118,9 +121,12 @@ class PropertiesPoke(Poke, Generic[T]):
         props = self.proxy.GetAll(self.interface_name)
         data = {}
         for prop in self.property_names:
-            data[prop] = props[snake2camel(prop)].unpack()
+            data[prop] = props[self.transform_variable(prop)].unpack()
 
         return data
+
+    def transform_variable(self, s: str) -> str:
+        return snake2camel(s, capitalize_first=self.capitalize_first)
 
     def on_property_change(self, _, changed, __):
         if not self.property_names:
@@ -131,7 +137,7 @@ class PropertiesPoke(Poke, Generic[T]):
         change_detected = False
         for prop in self.property_names:
             try:
-                changed_value = changed[snake2camel(prop)].unpack()
+                changed_value = changed[self.transform_variable(prop)].unpack()
                 if changed_value != self.current_data[prop]:
                     self.current_data[prop] = changed_value
                     change_detected = True

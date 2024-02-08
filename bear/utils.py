@@ -2,8 +2,11 @@ import os
 import sys
 
 
-def snake2camel(s):
-    return "".join(word.title() for word in s.split("_"))
+def snake2camel(s, capitalize_first=True):
+    camel = "".join(word.title() for word in s.split("_"))
+    if not capitalize_first:
+        camel = camel[0:1].lower() + camel[1:]
+    return camel
 
 
 class HiddenPrints:

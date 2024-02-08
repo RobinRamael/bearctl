@@ -116,7 +116,6 @@ def cli():
 def service(bear_names, verbosity):
     logger.setLevel(logging.getLevelName(verbosity.upper()))
 
-    logger.info("Starting GLib main loop")
     loop = GLib.MainLoop()
 
     if not bear_names:

@@ -218,7 +218,7 @@ class DropboxBear(SystemdServiceBear):
 
 
 @bears.recruit
-class RedshiftBear(PauseableSystemdServiceBear):
-    name = "redshift"
-    service = ServiceStatePoke("redshift.service")
+class GammastepBear(PauseableSystemdServiceBear):
+    name = "gammastep"
+    service = ServiceStatePoke("gammastep.service")
     view = EwwPrefixView(var_names=["state"])

@@ -304,12 +304,14 @@ class Bears:
         return bear_class
 
     def initialize(self, bear_name):
+        logger.debug(f"registering {bear_name} bear")
         bear = self.bear_classes[bear_name](self.session_bus, self.system_bus)
         bear.register()
 
         GLib.idle_add(lambda: bear.update(), priority=GLib.PRIORITY_DEFAULT)
 
         self.bears[bear.name] = bear
+        logger.info(f"succesfully registered {bear.name} bear")
 
     def initalize_all(self):
         for name in self.bear_classes.keys():

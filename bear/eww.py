@@ -1,4 +1,5 @@
 from datetime import datetime
+import json
 import logging
 import os
 import subprocess
@@ -73,6 +74,9 @@ class EwwController:
             logger.warning("%s is not executable, skipping...", location)
             return
 
+        self.executable_var = self.var("BEARCTL")
+        self.executable_var.set(location)
+
         subprocess.run(["eww", "update", f"BEARCTL={location}"])
         logger.info("Bootstrapped %s into eww variable", location)
 
@@ -84,7 +88,12 @@ class EwwController:
             logger.warning("Empty update passed to eww, ignoring.")
             return
 
-        variables = [f"{k}={v}" for k, v in kwargs.items()]
+        variables = []
+        for k, v in kwargs.items():
+            if isinstance(v, bool):
+                v = str(v).lower()
+            assignment = f"{k}={v}"
+            variables.append(assignment)
 
         logger.debug("Updating: %s", ", ".join(variables))
         subprocess.run(["eww", "update", *variables])
@@ -129,7 +138,7 @@ class EwwPrefixView(BearView):
         self, prefix: Optional[str] = None, var_names: Optional[List[str]] = None
     ):
         self.prefix = prefix
-        logger.info("setting prefix to %s", prefix)
+        logger.debug("setting prefix to %s", prefix)
         self.eww: EwwController = eww or EwwController()
         if not var_names:
             raise TypeError("Missing argument var_names")
@@ -138,7 +147,7 @@ class EwwPrefixView(BearView):
     def register(self, bear: Bear):
         super().register(bear)
         if not self.prefix:
-            logger.info("setting prefix to %s", bear.name)
+            logger.debug("setting prefix to %s", bear.name)
             self.prefix = bear.name
 
         self.variables = {

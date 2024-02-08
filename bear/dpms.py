@@ -54,7 +54,7 @@ class DPMSPoke(PollingPoke):
         self.set_data({"enabled": False})
 
 
-@bears.recruit
+# @bears.recruit
 class DPMSBear(ActionableBear):
     name = "dpms"
     dpms = DPMSPoke(interval=5)

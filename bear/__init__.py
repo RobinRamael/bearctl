@@ -5,6 +5,7 @@ from . import systemd
 from . import monitor
 from . import dpms
 from . import i3
+from . import dunst
 
 logger = logging.getLogger()
 handler = logging.StreamHandler()

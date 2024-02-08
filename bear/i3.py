@@ -88,12 +88,12 @@ class I3Poke(Poke):
 
 def get_title(ev):
     return {
-        "title": ev.ipc_data["container"]["window_properties"]["title"],
+        "title": ev.ipc_data["container"]["name"],
     }
 
 
 @bears.recruit
-class I3Bear(Bear):
+class SwayBear(Bear):
     name = "i3"
 
     i3_focus = I3Poke(event_type=i3ipc.Event.WINDOW_FOCUS, data_from_event=get_title)

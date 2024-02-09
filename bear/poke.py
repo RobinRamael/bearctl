@@ -22,7 +22,7 @@ class PokeMeta(type):
 
 
 class Poke(metaclass=PokeMeta):
-    data_class: Type
+    data_class: Callable
     bear: Bear
     name: str
     current_data: Dict[Any, Any]
@@ -31,7 +31,7 @@ class Poke(metaclass=PokeMeta):
 
     _class_pokes = {}  # overwritten in meta
 
-    def __init__(self, data_class: Optional[T] = None):
+    def __init__(self, data_class: Optional[Callable] = None):
         self.handlers = []
         self.current_data = {}
 
@@ -120,6 +120,7 @@ class MultiPropertiesPoke(DBusPoke, Generic[T]):
 
         self.proxies = {}
         self.last_change_in = None
+        self.when_changed: Dict[Tuple[str, str], float] = {}
 
     def add_proxy(self, proxy):
         self._add_proxy(proxy)
@@ -135,6 +136,7 @@ class MultiPropertiesPoke(DBusPoke, Generic[T]):
 
         init_data = self.get_initial_data_for(proxy)
         self.current_data[service_name, obj_path] = init_data
+        self.when_changed[service_name, obj_path] = time.time()
         self.last_change_in = (service_name, obj_path)
 
     def get_initial_data_for(self, proxy):
@@ -148,11 +150,13 @@ class MultiPropertiesPoke(DBusPoke, Generic[T]):
     def remove_proxy(self, name, obj_path):
         proxy, handler = self.proxies[name, obj_path]
         proxy.PropertiesChanged.disconnect(handler)
-        logger.debug(f"Removed proxy ({name}, {obj_path})")
         del self.proxies[name, obj_path]
         del self.current_data[name, obj_path]
+        del self.when_changed[name, obj_path]
         if self.last_change_in == (name, obj_path):
             self.last_change_in = self.get_last_changed()
+
+        logger.debug(f"Removed proxy ({name}, {obj_path})")
 
     def get_last_changed(self):
         if not self.current_data:
@@ -160,8 +164,8 @@ class MultiPropertiesPoke(DBusPoke, Generic[T]):
 
         last_change = 0
         newest_key = None
-        for key, data in self.current_data.items():
-            if data["_timestamp"] > last_change:
+        for key, t in self.when_changed.items():
+            if t > last_change:
                 newest_key = key
 
         return newest_key
@@ -186,7 +190,7 @@ class MultiPropertiesPoke(DBusPoke, Generic[T]):
                 pass
 
         if change_detected:
-            self.current_data[service_name, obj_path]["_timestamp"] = time.time()
+            self.when_changed[service_name, obj_path] = time.time()
 
             self.last_changed_in = (service_name, obj_path)
             logger.debug(f"Property change in {self}, poking bears...")
@@ -195,7 +199,7 @@ class MultiPropertiesPoke(DBusPoke, Generic[T]):
 
     @property
     def last_changed(self):
-        return self.current_data[self.last_change_in]
+        return self.data_class(**self.current_data[self.last_change_in])
 
     def __str__(self):
         return (
@@ -235,7 +239,7 @@ class PropertiesPoke(MultiPropertiesPoke):
 
     @property
     def data(self):
-        return self.data_class(**self.last_changed)
+        return self.data_class(**self.current_data[self.last_change_in])
 
 
 P = TypeVar("P")

@@ -7,6 +7,7 @@ from . import dpms
 from . import i3
 from . import dunst
 from . import music
+from . import volume
 
 logger = logging.getLogger()
 handler = logging.StreamHandler()

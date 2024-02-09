@@ -294,10 +294,24 @@ class BearView(ABC):
 
 
 class DebugView(BearView):
+    def __init__(self, keys=None, key=None):
+        if key:
+            self.keys = [key]
+        else:
+            self.keys = keys
+
     def render(self, context):
         from pprint import pprint
 
-        pprint(context)
+        if not self.keys:
+            pprint(context)
+        elif len(self.keys) == 1:
+            pprint(context[self.keys[0]])
+        else:
+            to_print = {}
+            for f in self.keys:
+                to_print[f] = context.get(f, None)
+            pprint(to_print)
 
 
 class Bears:

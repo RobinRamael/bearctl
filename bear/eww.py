@@ -162,3 +162,22 @@ class EwwPrefixView(BearView):
                 update[variable.name] = new_value
 
         self.eww.update(**update)
+
+
+class EwwJSONView(BearView):
+    def __init__(self, var_name, from_key=None):
+        self.var_name = var_name
+        self.eww: EwwController = eww or EwwController()
+        self.from_key = from_key
+
+    def register(self, bear: Bear):
+        super().register(bear)
+        self.var = self.eww.var(self.var_name)
+
+    def render(self, context: Any):
+        if self.from_key:
+            value = context[self.from_key]
+        else:
+            value = context
+
+        self.var.set(json.dumps(value))

@@ -2,6 +2,7 @@ from datetime import datetime
 import json
 import logging
 import os
+from re import L
 import subprocess
 import sys
 from threading import Thread
@@ -128,6 +129,30 @@ class EwwVariable:
 
         else:
             logger.info("%s was never set, not refreshing", self.name)
+
+
+class EwwSingleVariableView(BearView):
+    def __init__(self, name, from_key=None):
+        self.name = name
+        self.eww: EwwController = eww or EwwController()
+        self.from_key = from_key
+
+    def register(self, bear: Bear):
+        super().register(bear)
+        self.var = self.eww.var(self.name)
+
+    def render(self, context):
+        if self.from_key:
+            value = context[self.from_key]
+        else:
+            if not len(context) == 1:
+                raise TypeError(
+                    "Context had more than one key, please specify from_key in EwwSingleVariableView.__init__"
+                )
+
+            value = list(context.values()).pop()
+
+        self.var.set(value)
 
 
 class EwwPrefixView(BearView):

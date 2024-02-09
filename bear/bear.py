@@ -117,6 +117,7 @@ class BearMeta(type):
         return obj
 
 
+
 class Bear(metaclass=BearMeta):
     _dbus_methods = {}  # should always be overwritten in BearMeta
     _class_pokes = {}  # idem

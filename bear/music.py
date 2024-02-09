@@ -113,7 +113,6 @@ class MusicBear(Bear):
     )
 
     view = EwwJSONView("current_track", from_key="track_data")
-    debug = DebugView(key="track_data")
 
     def get_extra_context(self):
         return {"track_data": self.new_player.last_changed.as_dict()}

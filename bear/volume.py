@@ -4,16 +4,27 @@ import threading
 import pulsectl
 
 from bear.bear import Bear, DebugView, bears
+from bear.eww import EwwPrefixView, EwwSingleVariableView
 from bear.poke import Poke
 
 logger = logging.getLogger(__name__)
 
 
 class VolumePoke(Poke):
-    def register(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.pulse = pulsectl.Pulse("bear-volume")
+
+    def register(self):
+        super().register()
+
         self._event = None
 
+        # the pulsectl library doens't allow us to do other pulseaudio calls
+        # from other threads while its loop is running, so when an event is
+        # triggered, we set it on the object, stop the loop, handle the event
+        # and start the loop again. weird, but since it's ok-ish if we miss an
+        # event, it's probably Good Enough?
         def _on_event(ev):
             self._event = ev
             raise pulsectl.PulseLoopStop
@@ -43,9 +54,28 @@ class VolumePoke(Poke):
         self.current_data = {"volume": self.pulse.sink_info(ev.index).volume.values[0]}
         self.poke()
 
+    def get_initial_data(self):
+        try:
+            return {"volume": self.pulse.sink_list()[0].volume.values[0]}
+        except IndexError:
+            logger.warning("No sinks found to display volume for")
+            return {"volume": 0}
+
 
 @bears.recruit
 class VolumeBear(Bear):
     name = "volume"
     volume = VolumePoke()
-    debug = DebugView()
+    eww = EwwPrefixView(var_names=["percentage", "icon_name"])
+
+    def get_extra_context(self):
+        ctx = super().get_extra_context()
+        percentage = round(self.volume.data["volume"] * 100)
+        ctx["percentage"] = percentage
+        if percentage > 0:
+            icon_idx = min(2, int(percentage // (100 / 3)))
+            ctx["icon_name"] = f"VOLUME_ICON_{icon_idx}"
+        else:
+            ctx["icon_name"] = "VOLUME_MUTED_ICON"
+
+        return ctx

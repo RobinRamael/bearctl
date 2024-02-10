@@ -66,7 +66,7 @@ def build_bears():
             name="redshift",
             bus=session_bus,
             servicectl=ServiceCtl(
-                service_name="redshift.service", systemd=ses_systemd_manager
+                service_name="gammastep.service", systemd=ses_systemd_manager
             ),
             view=I3StatusBlock(block_name="RedshiftBlock", session_bus=session_bus),
             # view=Printer(),
@@ -82,12 +82,12 @@ def build_bears():
             # view=Printer(),
             icon=Icons.FOLDER,
         ),
-        DPMSBear(
-            name="dpms",
-            bus=session_bus,
-            view=I3StatusBlock(block_name="DPMSBlock", session_bus=session_bus),
-            icon=Icons.EYE,
-        ),
+        # DPMSBear(
+        #     name="dpms",
+        #     bus=session_bus,
+        #     view=I3StatusBlock(block_name="DPMSBlock", session_bus=session_bus),
+        #     icon=Icons.EYE,
+        # ),
     ]
 
     return bears

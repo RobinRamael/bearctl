@@ -7,7 +7,7 @@ from bear.bear import Bear, BearView, bears
 from bear.eww import EwwPrefixView
 from bear.icons import Icons
 from bear.notifications import NotificationCtl, NotificationIcons, NotificationUrgency
-from bear.poke import PropertiesPoke
+from bear.poke import ProxyPoke
 from bear.utils import BearLevel
 
 UPOWER_DEVICE_INTERFACE = "org.freedesktop.UPower.Device"
@@ -40,19 +40,16 @@ class BatteryData:
         )
 
 
-class BatteryPoker(PropertiesPoke):
+class BatteryPoker(ProxyPoke):
     property_names = ["percentage", "state"]
     interface_name = UPOWER_DEVICE_INTERFACE
     data_class = BatteryData
+    service_name = UPOWER_BUS_NAME
 
     def __init__(self, battery_name):
         super().__init__(use_session_bus=False)
         self.battery_name = battery_name
-
-    def get_proxy(self):
-        return self.bus.get_proxy(
-            UPOWER_BUS_NAME, f"{UPOWER_DEVICE_PATH_PREFIX}{self.battery_name}"
-        )
+        self.obj_path = f"{UPOWER_DEVICE_PATH_PREFIX}{self.battery_name}"
 
 
 class BatteryNotificationView(BearView):

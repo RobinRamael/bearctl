@@ -5,6 +5,7 @@ from typing import Any, Callable, Dict, Generic, List, Optional, Tuple, Type, Ty
 
 from dasbus.client.proxy import get_object_handler, get_object_path
 from dasbus.connection import SessionMessageBus, SystemMessageBus
+from dasbus.constants import DBUS_FLAG_NONE
 from gi.repository import GLib
 
 from bear.bear import Bear
@@ -95,7 +96,7 @@ class DBusPoke(Poke):
             return self.system_bus
 
 
-class MultiPropertiesPoke(DBusPoke, Generic[T]):
+class MultiProxyPoke(DBusPoke, Generic[T]):
     property_names: List[str] = []  # should be overwritten in implementing class
     interface_name: str
     proxies: Dict[Tuple[str, str], Tuple[Any, Callable]]
@@ -170,9 +171,6 @@ class MultiPropertiesPoke(DBusPoke, Generic[T]):
 
         return newest_key
 
-    def transform_variable(self, s: str) -> str:
-        return snake2camel(s, capitalize_first=self.capitalize_first)
-
     def on_property_change(self, service_name, obj_path, _, changed, __):
         if not self.property_names:
             logger.warn(
@@ -207,22 +205,109 @@ class MultiPropertiesPoke(DBusPoke, Generic[T]):
         )
 
 
-class PropertiesPoke(MultiPropertiesPoke):
-    def __init__(self, *args, service_name=None, obj_path=None, **kwargs):
+class ProxyPoke(DBusPoke):
+    proxy: Any
+    property_names: List[str] = []
+    service_name: str = None
+    obj_path: str = None
+
+    def __init__(
+        self,
+        *args,
+        service_name=None,
+        unique_name=None,
+        obj_path=None,
+        interface_name=None,
+        property_names=None,
+        capitalize_first=True,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
 
         if service_name:
             self.service_name = service_name
 
+        if not self.property_names:
+            self.property_names = property_names or []
+
+        if interface_name:
+            self.interface_name = interface_name
+
+        self.capitalize_first = capitalize_first
+
         if obj_path:
             self.obj_path = obj_path
 
-    def register(self):
-        super().register()
-        self._add_proxy(self.get_proxy())
+        self.unique_name = unique_name
 
-    def add_proxy(self, proxy):
-        raise NotImplementedError
+    def register(self):
+        self.proxy = self.get_proxy()
+
+        super().register()
+
+        name = (
+            self.unique_name
+            or self.service_name
+            or get_object_handler(self.proxy)._service_name
+        )
+
+        obj_path = self.obj_path or get_object_path(self.proxy)
+
+        subscription_id = self.bus.connection.signal_subscribe(
+            name,
+            "org.freedesktop.DBus.Properties",
+            "PropertiesChanged",
+            obj_path,
+            None,
+            DBUS_FLAG_NONE,
+            callback=self.on_property_change,
+            user_data=(),
+        )
+
+    def get_initial_data(self):
+        props = self.proxy.GetAll(self.interface_name)
+        data = {}
+        for prop in self.property_names:
+            data[prop] = props[self.transform_variable(prop)].unpack()
+
+        return data
+
+    def on_property_change(
+        self,
+        connection,
+        sender_name,
+        object_path,
+        interface_name,
+        signal_name,
+        parameters,
+        user_data,
+    ):
+        if not self.property_names:
+            logger.warn(
+                f"Change was detected in {self}, but no property names were set."
+            )
+
+        _, changed, __ = parameters
+
+        change_detected = False
+        for prop in self.property_names:
+            try:
+                changed_value = changed[self.transform_variable(prop)]
+                if changed_value != self.current_data[prop]:
+                    self.current_data[prop] = changed_value
+                    change_detected = True
+            except KeyError:
+                pass
+
+        if change_detected:
+            logger.debug(
+                f"Property change in {self}, from {sender_name}, poking bears..."
+            )
+            logger.debug(f"current data is now {self.current_data}")
+            self.poke()
+
+    def transform_variable(self, s: str) -> str:
+        return snake2camel(s, capitalize_first=self.capitalize_first)
 
     def get_proxy(self):
         if not self.service_name:
@@ -232,14 +317,6 @@ class PropertiesPoke(MultiPropertiesPoke):
             raise TypeError(f"Need obj_path to build dbus proxy for {self}")
 
         return self.bus.get_proxy(self.service_name, self.obj_path)
-
-    @property
-    def proxy(self):
-        return list(self.proxies.values())[0][0]
-
-    @property
-    def data(self):
-        return self.data_class(**self.current_data[self.last_change_in])
 
 
 P = TypeVar("P")

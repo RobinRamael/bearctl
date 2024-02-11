@@ -1,13 +1,13 @@
 from bear.bear import Bear, bears, dbus_method
 from bear.eww import EwwPrefixView
-from bear.poke import PropertiesPoke
+from bear.poke import ProxyPoke
 from bear.utils import BearLevel
 
 
 @bears.recruit
 class DunstBear(Bear):
     name = "dunst"
-    dunst = PropertiesPoke(
+    dunst = ProxyPoke(
         service_name="org.freedesktop.Notifications",
         obj_path="/org/freedesktop/Notifications",
         interface_name="org.dunstproject.cmd0",

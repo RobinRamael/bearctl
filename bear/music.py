@@ -10,7 +10,7 @@ from gi.repository import GLib
 
 from bear.bear import Bear, DebugView, bears
 from bear.eww import EwwJSONView, EwwVariable
-from bear.poke import DBUSServicePoke, MultiPropertiesPoke
+from bear.poke import DBUSServicePoke, MultiProxyPoke
 
 
 logger = logging.getLogger(__name__)
@@ -79,7 +79,7 @@ class PlayerData:
         }
 
 
-class MPRISPlayerPropertiesPoke(MultiPropertiesPoke):
+class MPRISPlayerPropertiesPoke(MultiProxyPoke):
     players = DBUSServicePoke(match_on=MP2_BUS_NAME)
     interface_name = MP2_PLAYER_INTERFACE
     data_class = PlayerData.from_props
@@ -105,7 +105,7 @@ class MPRISPlayerPropertiesPoke(MultiPropertiesPoke):
             self.remove_proxy(removed_player_name, MP2_PLAYER_OBJECT_PATH)
 
 
-@bears.recruit
+# @bears.recruit
 class MusicBear(Bear):
     name = "music"
     new_player = MPRISPlayerPropertiesPoke(

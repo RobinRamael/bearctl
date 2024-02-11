@@ -9,7 +9,7 @@ from gi.repository import GLib
 
 from bear.bear import ActionableBear, Bear, bears, dbus_method
 from bear.eww import EwwPrefixView
-from bear.poke import PropertiesPoke
+from bear.poke import ProxyPoke
 from bear.utils import snake2camel
 
 SYSTEMD_BUS_NAME = "org.freedesktop.systemd1"
@@ -75,9 +75,10 @@ class ServiceState:
         return self.active_state != "active"
 
 
-class ServiceStatePoke(PropertiesPoke):
+class ServiceStatePoke(ProxyPoke):
     data_class = ServiceState
     interface_name = "org.freedesktop.systemd1.Unit"
+    # service_name
 
     def __init__(
         self, service_name, property_names=["active_state", "sub_state"], **kwargs

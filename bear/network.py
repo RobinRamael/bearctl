@@ -1,4 +1,5 @@
 from bear.bear import Bear
+from bear.poke import MultiProxyPoke, Poke, ProxyPoke
 
 
 class NetworkManager:
@@ -14,6 +15,10 @@ class NetworkManager:
     @property
     def active_connections(self):
         return self.proxy.Get("org.freedesktop.Networkmanager", "ActiveConnections")
+
+
+class ActiveConnectionsPoke(ProxyPoke):
+    pass
 
 
 class NetworkBear(Bear):

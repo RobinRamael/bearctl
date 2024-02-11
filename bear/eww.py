@@ -11,6 +11,7 @@ from typing import Any, Callable, Dict, List, Optional
 from gi.repository import GLib
 
 from bear.bear import Bear, BearView
+from bear.utils import in_debug_mode
 
 EWW_RELOAD_MATCH = "Reloaded config successfully"
 
@@ -64,21 +65,29 @@ class EwwController:
 
     def bootstrap(self):
         try:
-            location = os.environ["BEARCTL_EXECUTABLE"]
-            logger.debug("Found %s in env var", location)
+            executable_location = os.environ["BEARCTL_EXECUTABLE"]
+            logger.debug("Found %s in env var", executable_location)
         except KeyError:
-            location = sys.argv[0]
-            logger.debug("Found %s in sys.args", location)
+            executable_location = sys.argv[0]
+            logger.debug("Found %s in sys.args", executable_location)
 
-        if not os.access(location, os.X_OK):
-            logger.warning("%s is not executable, skipping...", location)
+        if not os.access(executable_location, os.X_OK):
+            logger.warning("%s is not executable, skipping...", executable_location)
             return
 
-        self.executable_var = self.var("BEARCTL")
-        self.executable_var.set(location)
+        if in_debug_mode():
+            command = f"DEBUG=1 {executable_location}"
+        else:
+            command = executable_location
 
-        subprocess.run(["eww", "update", f"BEARCTL={location}"])
-        logger.info("Bootstrapped %s into eww variable", location)
+        self.executable_var = self.var("BEARCTL")
+        self.executable_var.set(command)
+
+        self.debug_mode_var = self.var("DEBUG")
+        self.debug_mode_var.set(in_debug_mode())
+
+        # subprocess.run(["eww", "update", f"BEARCTL={location}"])
+        logger.info("Bootstrapped %s into eww variable", executable_location)
 
     def listen_for_reloads(self):
         self.listener.listen()

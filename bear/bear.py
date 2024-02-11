@@ -4,6 +4,7 @@ from copy import copy
 from functools import wraps
 import inspect
 import logging
+import os
 from re import L
 import threading
 import time
@@ -15,7 +16,7 @@ from dasbus.xml import XMLGenerator as DBusXML
 from gi.repository import GLib
 
 from bear.exceptions import DoubleBearException
-from bear.utils import snake2camel
+from bear.utils import in_debug_mode, snake2camel
 from bear.utils import snake2camel
 
 logger = logging.getLogger(__name__)
@@ -131,7 +132,7 @@ class Bear(metaclass=BearMeta):
     session_bus: SessionMessageBus
     system_bus: SystemMessageBus
 
-    def __init__(self, session_bus, system_bus):
+    def __init__(self, session_bus, system_bus, debug=False):
         self.session_bus = session_bus
         self.system_bus = system_bus
         # todo: dasbus can do this for us probably
@@ -152,8 +153,13 @@ class Bear(metaclass=BearMeta):
         if not self.views:
             logger.warning("Bear %s has no views set!", self.name)
 
+        self.debug = os.environ.get("DEBUG", False)
+
     @classmethod
     def get_dbus_name(cls):
+        if in_debug_mode():
+            return f"{snake2camel(cls.name)}HomtiBear"
+
         return f"{snake2camel(cls.name)}Bear"
 
     def register(self):

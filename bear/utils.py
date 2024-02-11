@@ -64,3 +64,7 @@ class BearLevel:
 
         # ... what a mess. is there any way to do this nicely? it's tested, i
         # guess...
+
+
+def in_debug_mode():
+    os.environ.get("DEBUG", False)

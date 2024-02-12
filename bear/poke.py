@@ -46,10 +46,11 @@ class Poke(metaclass=PokeMeta):
     session_bus: SessionMessageBus
     system_bus: SystemMessageBus
     last_change: float
+    initial: Dict = {}
 
     _class_pokes = {}  # overwritten in meta
 
-    def __init__(self, data_class: Optional[Callable] = None):
+    def __init__(self, data_class: Optional[Callable] = None, initial=None):
         self.handlers = []
         self.current_data = {}
 
@@ -60,6 +61,8 @@ class Poke(metaclass=PokeMeta):
 
         self.sub_pokes = self._class_pokes[:]
         self.last_change = 0
+        if initial:
+            self.initial = initial
 
     def poke(self):
         self.last_change = time.time()
@@ -81,7 +84,7 @@ class Poke(metaclass=PokeMeta):
         return self.current_data
 
     def get_initial_data(self):
-        return {}
+        return dict(self.initial)
 
     def set_data(self, new_data):
         self.current_data.update(new_data)
@@ -103,6 +106,10 @@ class Poke(metaclass=PokeMeta):
 
     def update(self):
         raise NotImplementedError
+
+    def post_init(self):
+        for poke in self.sub_pokes:
+            poke.post_init()
 
 
 class DBusPoke(Poke):

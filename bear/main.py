@@ -122,6 +122,8 @@ def service(bear_names, verbosity):
     else:
         bears.initialize_some(bear_names)
 
+    bears.post_init()
+
     eww.bootstrap()
     eww.listen_for_reloads()
 

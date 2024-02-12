@@ -1,27 +1,33 @@
 import logging
 import threading
-from typing import Any, Callable, Optional
+from typing import Any, Callable, List, Optional
 
-import i3ipc
+from Xlib.protocol import event
+from i3ipc import (
+    Connection as I3Connection,
+    Event as I3Event,
+    WindowEvent,
+    WorkspaceEvent,
+)
 
-from bear.bear import Bear, bears
-from bear.eww import EwwPrefixView
+from bear.bear import Bear, DebugView, bears
+from bear.eww import EwwJSONView, EwwPrefixView
 from bear.poke import Poke
 
 logger = logging.getLogger()
 
 
 class _I3:
-    connection: Optional[i3ipc.Connection]
+    connection: I3Connection
 
     def __init__(self):
         self.connection = None
         self.listened_to = False
         self.running = False
 
-    def get_connection(self) -> i3ipc.Connection:
+    def get_connection(self) -> I3Connection:
         if not self.connection:
-            self.connection = i3ipc.Connection()
+            self.connection = I3Connection()
         return self.connection
 
     def on(self, event_type, handler):
@@ -51,28 +57,30 @@ sway = i3
 
 
 class I3Poke(Poke):
-    event_type: i3ipc.Event
+    event_types: List[I3Event] = []
 
     def __init__(
         self,
         *args,
-        i3: Optional[i3ipc.Connection] = None,
-        event_type=None,
-        data_from_event: Optional[Callable[[i3ipc.Event], Any]] = None,
-        **kwargs
+        event_types=None,
+        data_from_event: Optional[Callable[[I3Event], Any]] = None,
+        **kwargs,
     ):
         super().__init__(*args, **kwargs)
 
         self.data_transform = data_from_event
 
-        if event_type:
-            self.event_type = event_type
+        if event_types:
+            self.event_types = event_types
 
     def register(self):
         super().register()
         logger.debug("Registered i3 poke")
 
-        i3.on(self.event_type, self.listener)
+        for event_type in self.event_types:
+            i3.on(event_type, self.listener)
+
+    def post_init(self):
         i3.ensure_listening()
 
     def data_from_event(self, event):
@@ -103,6 +111,102 @@ def get_title(ev):
 class FocusedWindowBear(Bear):
     name = "focused"
 
-    i3_focus = I3Poke(event_type=i3ipc.Event.WINDOW, data_from_event=get_title)
+    i3_focus = I3Poke(event_types=[I3Event.WINDOW], data_from_event=get_title)
 
     view = EwwPrefixView(var_names=["title"])
+
+
+class I3ActiveWorkspacesPoke(I3Poke):
+    event_types = [
+        I3Event.WORKSPACE_INIT,
+        I3Event.WORKSPACE_EMPTY,
+    ]
+
+    def get_initial_data(self):
+        workspaces = i3.connection.get_workspaces()
+
+        return {"workspaces": {w.ipc_data["num"] for w in workspaces}}
+
+    def listener(self, _, event: WorkspaceEvent):
+        ws = event.ipc_data["current"]["num"]
+
+        if event.change == "empty":
+            self.current_data["workspaces"].remove(ws)
+
+        elif event.change == "init":
+            self.current_data["workspaces"].add(ws)
+
+        else:
+            raise Exception(f"Unhandled event type: {event.change}")
+
+        self.poke()
+
+
+class I3FocusedWorkspacePoke(I3Poke):
+    event_types = [I3Event.WORKSPACE_FOCUS]
+
+    def get_initial_data(self):
+        workspaces = i3.connection.get_workspaces()
+
+        return {
+            "focused": next(
+                (ws.ipc_data["num"] for ws in workspaces if ws.ipc_data["focused"]),
+                None,
+            )
+        }
+
+    def data_from_event(self, ev):
+        return {"focused": ev.ipc_data["current"]["num"]}
+
+
+def get_urgent_workspace(ev):
+    return {"urgent": ev.ipc_data["current"]["num"]}
+
+
+class I3UrgentWorkspacePoke(I3Poke):
+    event_types = [I3Event.WORKSPACE_URGENT, I3Event.WORKSPACE_FOCUS]
+    initial = {"urgent": None, "focused": None}
+
+    def listener(self, _, event):
+        if event.change == "urgent":
+            urgent_ws = event.ipc_data["current"]["num"]
+            if urgent_ws != self.current_data["focused"]:
+                self.current_data["urgent"] = urgent_ws
+            self.poke()
+        else:
+            if event.change == "focus":
+                focused_ws = event.ipc_data["current"]["num"]
+                if focused_ws == self.current_data["urgent"]:
+                    self.current_data["urgent"] = None
+                    self.poke()
+                self.current_data["focused"] = focused_ws
+
+    def get_data_dict(self):
+        return {"urgent": self.current_data["urgent"]}
+
+
+@bears.recruit
+class WorkspaceBear(Bear):
+    name = "workspace"
+    current_mode = I3Poke(event_types=[I3Event.MODE])
+
+    focused = I3FocusedWorkspacePoke()
+    urgent = I3UrgentWorkspacePoke()
+
+    workspaces = I3ActiveWorkspacesPoke()
+
+    view = EwwJSONView(var_name="sway_workspaces", from_key="workspaces")
+
+    def get_extra_context(self):
+        ws_data = []
+
+        for ws_num in sorted(list(self.workspaces.data["workspaces"])):
+            ws_data.append(
+                {
+                    "index": ws_num,
+                    "focused": ws_num == self.focused.data["focused"],
+                    "urgent": ws_num == self.urgent.data["urgent"],
+                }
+            )
+
+        return {"workspaces": ws_data}

@@ -221,6 +221,10 @@ class Bear(metaclass=BearMeta):
     def poke(self):
         raise NotImplementedError
 
+    def post_init(self):
+        for poke in self.pokes:
+            poke.post_init()
+
 
 class ViewableBear(Bear):
     def __init__(self, bus, name, view):
@@ -349,6 +353,10 @@ class Bears:
     def initialize_some(self, names):
         for name in names:
             self.initialize(name)
+
+    def post_init(self):
+        for bear in self.bears.values():
+            bear.post_init()
 
     def get_client(self, name) -> BearClient:
         return self.bear_classes[name].get_client(self.session_bus)

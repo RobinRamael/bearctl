@@ -372,6 +372,7 @@ class MultiPoke(Poke):
     def __init__(self):
         super().__init__()
         self.poke_map = {}
+        self.last_change_in = None
 
     def add_subpoke(self, key: Hashable, poke: Poke, initial=False):
         logger.debug(f"Adding subpoke {key}: {poke}")
@@ -388,10 +389,13 @@ class MultiPoke(Poke):
         proxy_poke.unregister()
         logger.debug(f"Removing subpoke {key}: {proxy_poke}")
 
-        self.last_change_in, _ = max(
-            ((k, poke) for k, poke in self.poke_map.items()),
-            key=lambda tup: tup[-1].last_change,
-        )
+        if self.poke_map:
+            self.last_change_in, _ = max(
+                ((k, poke) for k, poke in self.poke_map.items()),
+                key=lambda tup: tup[-1].last_change,
+            )
+        else:
+            self.last_change_in = None
 
         self.poke()
 
@@ -402,6 +406,10 @@ class MultiPoke(Poke):
 
     @property
     def data(self):
+        if not self.last_change_in:
+            assert not self.poke_map
+            return None
+
         return self.data_class(**self.poke_map[self.last_change_in].current_data)
 
     @property

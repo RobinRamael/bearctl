@@ -133,4 +133,4 @@ class MusicBear(Bear):
     view = EwwJSONView("current_track", from_key="track_data")
 
     def get_extra_context(self):
-        return {"track_data": self.players.data.as_dict()}
+        return {"track_data": self.players.data.as_dict() if self.players.data else {}}

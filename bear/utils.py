@@ -1,5 +1,7 @@
+from dataclasses import is_dataclass
 import os
 import sys
+from typing import Iterable, Mapping
 
 
 def snake2camel(s, capitalize_first=True):
@@ -68,3 +70,16 @@ class BearLevel:
 
 def in_debug_mode():
     os.environ.get("DEBUG", False)
+
+
+def to_full_dict(value):
+    if isinstance(value, str):
+        return value
+    elif isinstance(value, Mapping):
+        return {k: to_full_dict(v) for k, v in value.items()}
+    elif isinstance(value, Iterable):
+        return [to_full_dict(x) for x in value]
+    elif is_dataclass(value):
+        return to_full_dict(value.to_dict())
+    else:
+        return value

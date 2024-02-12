@@ -1,3 +1,4 @@
+from dataclasses import is_dataclass
 from datetime import datetime
 import json
 import logging
@@ -11,7 +12,7 @@ from typing import Any, Callable, Dict, List, Optional
 from gi.repository import GLib
 
 from bear.bear import Bear, BearView
-from bear.utils import in_debug_mode
+from bear.utils import in_debug_mode, to_full_dict
 
 EWW_RELOAD_MATCH = "Reloaded config successfully"
 
@@ -214,4 +215,4 @@ class EwwJSONView(BearView):
         else:
             value = context
 
-        self.var.set(json.dumps(value))
+        self.var.set(json.dumps(to_full_dict(value)))

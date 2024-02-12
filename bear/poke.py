@@ -39,7 +39,7 @@ class PokeMeta(type):
 
 
 class Poke(metaclass=PokeMeta):
-    data_class: Callable
+    data_class: Callable = dict
     bear: Bear
     name: str
     current_data: Dict[Any, Any]
@@ -384,6 +384,10 @@ class MultiPoke(Poke):
 
     def add_subpoke(self, key: Hashable, poke: Poke, initial=False):
         logger.debug(f"Adding subpoke {key}: {poke}")
+
+        poke.session_bus = self.session_bus
+        poke.system_bus = self.system_bus
+
         poke.add_handler(partial(self.on_proxy_change, key))
         poke.register()
         self.poke_map[key] = poke

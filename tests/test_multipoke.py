@@ -9,6 +9,7 @@ from bear.poke import MultiPoke
 def multipoke():
     mpoke = MultiPoke()
     mpoke.session_bus = Mock()
+    mpoke.system_bus = Mock()
     mpoke.register()
     return mpoke
 

@@ -130,6 +130,7 @@ class ProxyPoke(DBusPoke):
     property_names: List[str] = []
     service_name: str = None
     obj_path: str = None
+    property_mapping: Dict[str, str] = {}
 
     def __init__(
         self,
@@ -140,6 +141,7 @@ class ProxyPoke(DBusPoke):
         interface_name=None,
         property_names=None,
         capitalize_first=True,
+        property_mapping=None,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
@@ -159,6 +161,9 @@ class ProxyPoke(DBusPoke):
             self.obj_path = obj_path
 
         self.unique_name = unique_name
+
+        if property_mapping:
+            self.property_mapping = property_mapping
 
     def register(self):
         self.proxy = self.get_proxy()
@@ -234,7 +239,10 @@ class ProxyPoke(DBusPoke):
             self.poke()
 
     def transform_variable(self, s: str) -> str:
-        return snake2camel(s, capitalize_first=self.capitalize_first)
+        try:
+            return self.property_mapping[s]
+        except KeyError:
+            return snake2camel(s, capitalize_first=self.capitalize_first)
 
     def get_proxy(self):
         if not self.service_name:

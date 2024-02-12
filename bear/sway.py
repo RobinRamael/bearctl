@@ -3,10 +3,9 @@ import threading
 from typing import Any, Callable, Optional
 
 import i3ipc
-from psutil import POSIX
 
 from bear.bear import Bear, bears
-from bear.eww import EwwPrefixView, EwwVariable
+from bear.eww import EwwPrefixView
 from bear.poke import Poke
 
 logger = logging.getLogger()
@@ -18,6 +17,7 @@ class _I3:
     def __init__(self):
         self.connection = None
         self.listened_to = False
+        self.running = False
 
     def get_connection(self) -> i3ipc.Connection:
         if not self.connection:
@@ -29,9 +29,13 @@ class _I3:
         conn.on(event_type, handler)
         self.listened_to = True
 
-    def listen(self):
+    def ensure_listening(self):
         if not self.listened_to:
             logger.info("Not starting i3 loop because no handlers were set")
+            return
+
+        if self.running:
+            logger.debug("I3 loop already running")
             return
 
         def run_loop():
@@ -39,9 +43,11 @@ class _I3:
             self.get_connection().main()
 
         threading.Thread(target=run_loop, daemon=True).start()
+        self.running = True
 
 
 i3 = _I3()
+sway = i3
 
 
 class I3Poke(Poke):
@@ -67,6 +73,7 @@ class I3Poke(Poke):
         logger.debug("Registered i3 poke")
 
         i3.on(self.event_type, self.listener)
+        i3.ensure_listening()
 
     def data_from_event(self, event):
         if self.data_transform:
@@ -93,10 +100,9 @@ def get_title(ev):
 
 
 @bears.recruit
-class SwayBear(Bear):
-    name = "i3"
+class FocusedWindowBear(Bear):
+    name = "focused"
 
-    i3_focus = I3Poke(event_type=i3ipc.Event.WINDOW_FOCUS, data_from_event=get_title)
-    i3_title = I3Poke(event_type=i3ipc.Event.WINDOW_TITLE, data_from_event=get_title)
+    i3_focus = I3Poke(event_type=i3ipc.Event.WINDOW, data_from_event=get_title)
 
     view = EwwPrefixView(var_names=["title"])

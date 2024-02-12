@@ -4,7 +4,7 @@ from . import battery
 from . import systemd
 from . import monitor
 from . import dpms
-from . import i3
+from . import sway
 from . import dunst
 from . import music
 from . import volume

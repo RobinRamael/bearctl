@@ -1,7 +1,19 @@
+from functools import partial
 import logging
 import re
 import time
-from typing import Any, Callable, Dict, Generic, List, Optional, Tuple, Type, TypeVar
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Generic,
+    Hashable,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+)
 
 from dasbus.client.proxy import get_object_handler, get_object_path
 from dasbus.connection import SessionMessageBus, SystemMessageBus
@@ -14,6 +26,10 @@ from bear.utils import snake2camel
 T = TypeVar("T", bound=Type)
 
 logger = logging.getLogger(__name__)
+
+
+class UnregisteredException(Exception):
+    pass
 
 
 class PokeMeta(type):
@@ -29,6 +45,7 @@ class Poke(metaclass=PokeMeta):
     current_data: Dict[Any, Any]
     session_bus: SessionMessageBus
     system_bus: SystemMessageBus
+    last_change: float
 
     _class_pokes = {}  # overwritten in meta
 
@@ -42,8 +59,10 @@ class Poke(metaclass=PokeMeta):
             self.data_class = dict
 
         self.sub_pokes = self._class_pokes[:]
+        self.last_change = 0
 
     def poke(self):
+        self.last_change = time.time()
         for handler in self.handlers:
             handler()
 
@@ -69,8 +88,6 @@ class Poke(metaclass=PokeMeta):
         self.poke()
 
     def register(self):
-        logger.debug(f"Initial data for {self} set to {self.current_data}")
-
         for sub_poke in self.sub_pokes:
             sub_poke.session_bus = self.session_bus
             sub_poke.system_bus = self.system_bus
@@ -78,6 +95,11 @@ class Poke(metaclass=PokeMeta):
             sub_poke.register()
 
         self.current_data = self.get_initial_data()
+        logger.debug(f"Initial data for {self} set to {self.current_data}")
+        self.last_change = time.time()
+
+    def unregister(self):
+        pass
 
     def update(self):
         raise NotImplementedError
@@ -94,115 +116,6 @@ class DBusPoke(Poke):
             return self.session_bus
         else:
             return self.system_bus
-
-
-class MultiProxyPoke(DBusPoke, Generic[T]):
-    property_names: List[str] = []  # should be overwritten in implementing class
-    interface_name: str
-    proxies: Dict[Tuple[str, str], Tuple[Any, Callable]]
-
-    def __init__(
-        self,
-        *args,
-        interface_name=None,
-        property_names=None,
-        capitalize_first=True,
-        **kwargs,
-    ):
-        super().__init__(*args, **kwargs)
-
-        if not self.property_names:
-            self.property_names = property_names or []
-
-        if interface_name:
-            self.interface_name = interface_name
-
-        self.capitalize_first = capitalize_first
-
-        self.proxies = {}
-        self.last_change_in = None
-        self.when_changed: Dict[Tuple[str, str], float] = {}
-
-    def add_proxy(self, proxy):
-        self._add_proxy(proxy)
-
-    def _add_proxy(self, proxy):
-        service_name = get_object_handler(proxy)._service_name
-        obj_path = get_object_path(proxy)
-
-        on_change = lambda *x: self.on_property_change(service_name, obj_path, *x)
-
-        self.proxies[service_name, obj_path] = (proxy, on_change)
-        proxy.PropertiesChanged.connect(on_change)
-
-        init_data = self.get_initial_data_for(proxy)
-        self.current_data[service_name, obj_path] = init_data
-        self.when_changed[service_name, obj_path] = time.time()
-        self.last_change_in = (service_name, obj_path)
-
-    def get_initial_data_for(self, proxy):
-        props = proxy.GetAll(self.interface_name)
-        data = {}
-        for prop in self.property_names:
-            data[prop] = props[self.transform_variable(prop)].unpack()
-
-        return data
-
-    def remove_proxy(self, name, obj_path):
-        proxy, handler = self.proxies[name, obj_path]
-        proxy.PropertiesChanged.disconnect(handler)
-        del self.proxies[name, obj_path]
-        del self.current_data[name, obj_path]
-        del self.when_changed[name, obj_path]
-        if self.last_change_in == (name, obj_path):
-            self.last_change_in = self.get_last_changed()
-
-        logger.debug(f"Removed proxy ({name}, {obj_path})")
-
-    def get_last_changed(self):
-        if not self.current_data:
-            raise TypeError("No newest change because no data")
-
-        last_change = 0
-        newest_key = None
-        for key, t in self.when_changed.items():
-            if t > last_change:
-                newest_key = key
-
-        return newest_key
-
-    def on_property_change(self, service_name, obj_path, _, changed, __):
-        if not self.property_names:
-            logger.warn(
-                f"Change was detected in {self}, but no property names were set."
-            )
-
-        change_detected = False
-        for prop in self.property_names:
-            try:
-                changed_value = changed[self.transform_variable(prop)].unpack()
-                if changed_value != self.current_data[service_name, obj_path][prop]:
-                    self.current_data[service_name, obj_path][prop] = changed_value
-                    change_detected = True
-            except KeyError:
-                pass
-
-        if change_detected:
-            self.when_changed[service_name, obj_path] = time.time()
-
-            self.last_changed_in = (service_name, obj_path)
-            logger.debug(f"Property change in {self}, poking bears...")
-            logger.debug(f"current data is now {self.current_data}")
-            self.poke()
-
-    @property
-    def last_changed(self):
-        return self.data_class(**self.current_data[self.last_change_in])
-
-    def __str__(self):
-        return (
-            f"{self.__class__.__name__}({self.interface_name}, {self.property_names})"
-        )
 
 
 class ProxyPoke(DBusPoke):
@@ -253,7 +166,7 @@ class ProxyPoke(DBusPoke):
 
         obj_path = self.obj_path or get_object_path(self.proxy)
 
-        subscription_id = self.bus.connection.signal_subscribe(
+        self._subscription_id = self.bus.connection.signal_subscribe(
             name,
             "org.freedesktop.DBus.Properties",
             "PropertiesChanged",
@@ -263,6 +176,13 @@ class ProxyPoke(DBusPoke):
             callback=self.on_property_change,
             user_data=(),
         )
+
+    def unregister(self):
+        super().unregister()
+        if not self._subscription_id:
+            raise UnregisteredException
+
+        self.bus.connection.signal_unsubscribe(self._subscription_id)
 
     def get_initial_data(self):
         props = self.proxy.GetAll(self.interface_name)
@@ -317,6 +237,9 @@ class ProxyPoke(DBusPoke):
             raise TypeError(f"Need obj_path to build dbus proxy for {self}")
 
         return self.bus.get_proxy(self.service_name, self.obj_path)
+
+    def __str__(self):
+        return f"{self.__class__.__name__}({self.service_name, self.unique_name, self.obj_path})"
 
 
 P = TypeVar("P")
@@ -397,14 +320,14 @@ class DBUSServicePoke(DBusPoke):
         self.match_on = match_on
 
     def register(self):
-        logger.debug("Registering {self}")
+        logger.debug(f"Registering {self}")
         self.proxy = self.bus.get_proxy("org.freedesktop.DBus", "/org/freedesktop/DBus")
 
         self.proxy.NameOwnerChanged.connect(self.on_owner_change)
         self.current_data = self.get_initial_data()
 
     # completely unintuitively, listening for wether the name owner changed
-    # is how we figure out wether new players appear and already existing
+    # is how we figure out wether new services appear and already existing
     # ones dissappear: new ones have the old empty and dissappearing ones the new
     # empty.
     def on_owner_change(self, bus_name, old, new):
@@ -412,13 +335,13 @@ class DBUSServicePoke(DBusPoke):
 
         if self.matches(bus_name):
             if new:
-                self.current_data["names"].add(bus_name)
-                self.current_data["added_service"] = bus_name
-                self.current_data["removed_service"] = None
+                self.current_data["services"].add((bus_name, new))
+                self.current_data["new"] = (bus_name, new)
+                self.current_data["removed"] = (None, None)
             if old:
-                self.current_data["names"].remove(bus_name)
-                self.current_data["added_service"] = None
-                self.current_data["removed_service"] = bus_name
+                self.current_data["services"].remove((bus_name, old))
+                self.current_data["new"] = (None, None)
+                self.current_data["removed"] = (bus_name, old)
 
             self.poke()
 
@@ -426,7 +349,57 @@ class DBUSServicePoke(DBusPoke):
         return bool(re.search(self.match_on, service_name))
 
     def get_initial_data(self):
-        data = {
-            "names": set(name for name in self.proxy.ListNames() if self.matches(name))
+        names = set(name for name in self.proxy.ListNames() if self.matches(name))
+
+        name_data = set()
+        for name in names:
+            unique_name = self.proxy.GetNameOwner(name)
+            name_data.add((name, unique_name))
+
+        return {"services": name_data}
+
+
+class MultiPoke(Poke):
+    poke_map: Dict[Hashable, Poke]
+
+    def __init__(self):
+        super().__init__()
+        self.poke_map = {}
+
+    def add_subpoke(self, key: Hashable, poke: Poke, initial=False):
+        logger.debug(f"Adding subpoke {key}: {poke}")
+        poke.add_handler(partial(self.on_proxy_change, key))
+        poke.register()
+        self.poke_map[key] = poke
+        self.last_change_in = key
+
+        if not initial:
+            self.poke()
+
+    def remove_subpoke(self, key):
+        proxy_poke = self.poke_map.pop(key)
+        proxy_poke.unregister()
+        logger.debug(f"Removing subpoke {key}: {proxy_poke}")
+
+        self.last_change_in, _ = max(
+            ((k, poke) for k, poke in self.poke_map.items()),
+            key=lambda tup: tup[-1].last_change,
+        )
+
+        self.poke()
+
+    def on_proxy_change(self, key):
+        logger.debug(f"{self}: Received change in proxy with key {key}")
+        self.last_change_in = key
+        self.poke()
+
+    @property
+    def data(self):
+        return self.data_class(**self.poke_map[self.last_change_in].current_data)
+
+    @property
+    def all_data(self):
+        return {
+            key: self.data_class(**poke.current_data)
+            for key, poke in self.poke_map.items()
         }
-        return data

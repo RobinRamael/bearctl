@@ -1,16 +1,18 @@
 from dataclasses import asdict, dataclass
+from functools import partial
 import json
 import logging
 from os import remove
+from pprint import pprint
 import re
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Hashable, List, Optional
 from urllib.parse import urlparse
 
 from gi.repository import GLib
 
 from bear.bear import Bear, DebugView, bears
 from bear.eww import EwwJSONView, EwwVariable
-from bear.poke import DBUSServicePoke, MultiProxyPoke
+from bear.poke import DBUSServicePoke, MultiPoke, Poke, ProxyPoke
 
 
 logger = logging.getLogger(__name__)
@@ -79,40 +81,56 @@ class PlayerData:
         }
 
 
-class MPRISPlayerPropertiesPoke(MultiProxyPoke):
+class MPRISPlayerPropertiesPoke(MultiPoke):
     players = DBUSServicePoke(match_on=MP2_BUS_NAME)
     interface_name = MP2_PLAYER_INTERFACE
     data_class = PlayerData.from_props
+    property_names = ["metadata", "playback_status"]
 
-    def __init__(self, property_names=None):
-        super().__init__(property_names=property_names)
-        self.registered_player_names: Dict[str, Any] = {}
+    def create_proxypoke(self, service_name, unique_name):
+        poke = ProxyPoke(
+            service_name=service_name,
+            unique_name=unique_name,
+            interface_name=self.interface_name,
+            obj_path=MP2_PLAYER_OBJECT_PATH,
+            property_names=self.property_names,
+        )
+        poke.session_bus = self.session_bus
+        return poke
 
     def register(self):
         super().register()
-        for name in self.players.data["names"]:
-            self.add_proxy(self.bus.get_proxy(name, MP2_PLAYER_OBJECT_PATH))
+        for service_name, unique_name in self.players.data["services"]:
+            self.add_subpoke(
+                unique_name,
+                self.create_proxypoke(service_name, unique_name),
+                initial=True,
+            )
 
     def update(self):
-        new_player_name = self.players.data.get("added_service")
-        if new_player_name:
-            logger.info(f"adding player {new_player_name}")
-            self.add_proxy(self.bus.get_proxy(new_player_name, MP2_PLAYER_OBJECT_PATH))
+        new_service_name, new_unique_name = self.players.data.get("new")
+        if new_unique_name:
+            logger.info(f"adding player {new_service_name} ({new_unique_name})")
+            self.add_subpoke(
+                new_unique_name,
+                self.create_proxypoke(new_service_name, new_unique_name),
+            )
 
-        removed_player_name = self.players.data.get("removed_service")
-        if removed_player_name:
-            logger.info(f"removing player {removed_player_name}")
-            self.remove_proxy(removed_player_name, MP2_PLAYER_OBJECT_PATH)
+        removed_service_name, removed_unique_name = self.players.data.get("removed")
+        if removed_unique_name:
+            logger.info(
+                f"removing player {removed_service_name} ({removed_unique_name})"
+            )
+            self.remove_subpoke(removed_unique_name)
 
 
-# @bears.recruit
+@bears.recruit
 class MusicBear(Bear):
     name = "music"
-    new_player = MPRISPlayerPropertiesPoke(
-        property_names=["metadata", "playback_status"]
-    )
+
+    players = MPRISPlayerPropertiesPoke()
 
     view = EwwJSONView("current_track", from_key="track_data")
 
     def get_extra_context(self):
-        return {"track_data": self.new_player.last_changed.as_dict()}
+        return {"track_data": self.players.data.as_dict()}

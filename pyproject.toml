@@ -18,6 +18,7 @@ pulsectl = "23.5.2"
 [tool.poetry.group.dev.dependencies]
 pytest = "^6.0.0"
 pytest-mock = "*"
+pytest-sugar = "1.0.0"
 lxml = "5.1"
 ipdb = "^0.13.3"
 

@@ -99,11 +99,7 @@ logger = logging.getLogger()
 
 
 @click.group()
-def cli():
-    pass
-
-
-@cli.command()
+@click.option("--color", is_flag=True)
 @click.option(
     "--verbosity",
     type=click.Choice(
@@ -111,16 +107,42 @@ def cli():
     ),
     default="info",
 )
-@click.argument("bear_names", nargs=-1)
-def service(bear_names, verbosity):
+def cli(color, verbosity):
+    logger = logging.getLogger()
+    handler = logging.StreamHandler()
+
+    if color:
+        import colorlog
+
+        handler.setFormatter(
+            colorlog.ColoredFormatter(
+                "%(log_color)s%(levelname)-8s - %(asctime)s - %(name)s - %(message)s"
+            )
+        )
+    else:
+        handler.setFormatter(
+            logging.Formatter("%(levelname)-8s - %(asctime)s - %(name)s - %(message)s")
+        )
+
+    logger = logging.getLogger()
+    logger.handlers = [handler]
+
     logger.setLevel(logging.getLevelName(verbosity.upper()))
 
+
+@cli.command()
+@click.argument("bear_names", nargs=-1)
+def service(bear_names):
     loop = GLib.MainLoop()
 
     if not bear_names:
         bears.initalize_all()
     else:
         bears.initialize_some(bear_names)
+
+    if not bears.bears:
+        logger.critical("No viable bears... Exiting.")
+        exit(1)
 
     bears.post_init()
 

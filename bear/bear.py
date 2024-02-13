@@ -335,14 +335,25 @@ class Bears:
         return bear_class
 
     def initialize(self, bear_name):
-        logger.debug(f"registering {bear_name} bear")
-        bear = self.bear_classes[bear_name](self.session_bus, self.system_bus)
-        bear.register()
+        try:
+            bear = self.bear_classes[bear_name](self.session_bus, self.system_bus)
+        except KeyError:
+            logger.error("{bear_name}?! Who is this bear?")
+            return
 
-        GLib.idle_add(lambda: bear.update(), priority=GLib.PRIORITY_DEFAULT)
+        try:
+            logger.debug(f"registering {bear_name} bear")
+            bear.register()
 
-        self.bears[bear.name] = bear
-        logger.info(f"succesfully registered {bear.name} bear")
+            GLib.idle_add(lambda: bear.update(), priority=GLib.PRIORITY_DEFAULT)
+
+            self.bears[bear.name] = bear
+            logger.info(f"succesfully registered {bear.name} bear")
+        except Exception as e:
+            logger.exception(
+                f"Encountered exception while starting {bear_name}, skipping.",
+                exc_info=True,
+            )
 
     def initalize_all(self):
         for name in self.bear_classes.keys():

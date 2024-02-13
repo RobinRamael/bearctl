@@ -12,7 +12,7 @@ from gi.repository import GLib
 
 from bear.bear import Bear, DebugView, bears
 from bear.eww import EwwJSONView, EwwVariable
-from bear.poke import DBUSServicePoke, MultiPoke, Poke, ProxyPoke
+from bear.poke import DBUSServiceProvider, MultiPoke, MultiProxyPoke, Poke, ProxyPoke
 
 
 logger = logging.getLogger(__name__)
@@ -81,47 +81,20 @@ class PlayerData:
         }
 
 
-class MPRISPlayerPropertiesPoke(MultiPoke):
-    players = DBUSServicePoke(match_on=MP2_BUS_NAME)
+class MPRISPlayerPropertiesPoke(MultiProxyPoke):
+    players = DBUSServiceProvider(match_on=MP2_BUS_NAME)
     interface_name = MP2_PLAYER_INTERFACE
     data_class = PlayerData.from_props
     property_names = ["metadata", "playback_status"]
 
-    def create_proxypoke(self, service_name, unique_name):
-        poke = ProxyPoke(
+    def create_subpoke(self, unique_name, service_name):
+        return ProxyPoke(
             service_name=service_name,
             unique_name=unique_name,
             interface_name=self.interface_name,
             obj_path=MP2_PLAYER_OBJECT_PATH,
             property_names=self.property_names,
         )
-        poke.session_bus = self.session_bus
-        return poke
-
-    def register(self):
-        super().register()
-        for service_name, unique_name in self.players.data["services"]:
-            self.add_subpoke(
-                unique_name,
-                self.create_proxypoke(service_name, unique_name),
-                initial=True,
-            )
-
-    def update(self):
-        new_service_name, new_unique_name = self.players.data.get("new")
-        if new_unique_name:
-            logger.info(f"adding player {new_service_name} ({new_unique_name})")
-            self.add_subpoke(
-                new_unique_name,
-                self.create_proxypoke(new_service_name, new_unique_name),
-            )
-
-        removed_service_name, removed_unique_name = self.players.data.get("removed")
-        if removed_unique_name:
-            logger.info(
-                f"removing player {removed_service_name} ({removed_unique_name})"
-            )
-            self.remove_subpoke(removed_unique_name)
 
 
 @bears.recruit

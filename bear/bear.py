@@ -145,8 +145,6 @@ class Bear(metaclass=BearMeta):
         for poke in self.pokes:
             assert not hasattr(poke, "bear")
             poke.bear = self
-            poke.session_bus = self.session_bus
-            poke.system_bus = self.system_bus
 
         self.views: List[BearView] = self._class_views[:]
         if not self.views:
@@ -177,7 +175,7 @@ class Bear(metaclass=BearMeta):
 
         for poke in self.pokes:
             poke.add_handler(self.update)
-            poke.register()
+            poke.register(self)
 
         for view in self.views:
             view.register(self)

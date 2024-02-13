@@ -149,11 +149,10 @@ def test_proxy_poke(bus):
     )
     handler = Mock()
 
-    poke.session_bus = bus
     poke.add_handler(handler)
 
     def t1():
-        poke.register()
+        poke.register(parent=Mock(session_bus=bus))
 
     def t2():
         obj.Value = 3

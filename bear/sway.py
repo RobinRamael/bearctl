@@ -73,8 +73,8 @@ class I3Poke(Poke):
         if event_types:
             self.event_types = event_types
 
-    def register(self):
-        super().register()
+    def register(self, parent):
+        super().register(parent)
         logger.debug("Registered i3 poke")
 
         for event_type in self.event_types:

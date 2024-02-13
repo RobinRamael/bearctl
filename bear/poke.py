@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from functools import partial
 import logging
 import re
@@ -90,12 +91,10 @@ class Poke(metaclass=PokeMeta):
         self.current_data.update(new_data)
         self.poke()
 
-    def register(self):
+    def register(self, parent):
         for sub_poke in self.sub_pokes:
-            sub_poke.session_bus = self.session_bus
-            sub_poke.system_bus = self.system_bus
             sub_poke.add_handler(self.update)
-            sub_poke.register()
+            sub_poke.register(self)
 
         self.current_data = self.get_initial_data()
         logger.debug(f"Initial data for {self} set to {self.current_data}")
@@ -112,10 +111,10 @@ class Poke(metaclass=PokeMeta):
             poke.post_init()
 
 
-class DBusPoke(Poke):
-    def __init__(self, *args, use_session_bus=True, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.use_session_bus = use_session_bus
+class DBusMixin:
+    use_session_bus: bool
+    system_bus: SystemMessageBus
+    session_bus: SessionMessageBus
 
     @property
     def bus(self):
@@ -125,7 +124,7 @@ class DBusPoke(Poke):
             return self.system_bus
 
 
-class ProxyPoke(DBusPoke):
+class ProxyPoke(Poke, DBusMixin):
     proxy: Any
     property_names: List[str] = []
     service_name: str = None
@@ -142,6 +141,7 @@ class ProxyPoke(DBusPoke):
         property_names=None,
         capitalize_first=True,
         property_mapping=None,
+        use_session_bus=True,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
@@ -165,10 +165,14 @@ class ProxyPoke(DBusPoke):
         if property_mapping:
             self.property_mapping = property_mapping
 
-    def register(self):
+        self.use_session_bus = use_session_bus
+
+    def register(self, parent):
+        self.session_bus = parent.session_bus
+        self.system_bus = parent.system_bus
         self.proxy = self.get_proxy()
 
-        super().register()
+        super().register(parent)
 
         name = (
             self.unique_name
@@ -274,8 +278,8 @@ class PollingPoke(Poke, Generic[P]):
         self.poller = poller
         self.single_value = single_value
 
-    def register(self):
-        super().register()
+    def register(self, parent):
+        super().register(parent)
 
         GLib.timeout_add_seconds(
             priority=GLib.PRIORITY_DEFAULT,
@@ -327,73 +331,50 @@ class PollingPoke(Poke, Generic[P]):
             raise NotImplementedError
 
 
-class DBUSServicePoke(DBusPoke):
-    proxy: Any
-
-    def __init__(self, match_on, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.match_on = match_on
-
-    def register(self):
-        logger.debug(f"Registering {self}")
-        self.proxy = self.bus.get_proxy("org.freedesktop.DBus", "/org/freedesktop/DBus")
-
-        self.proxy.NameOwnerChanged.connect(self.on_owner_change)
-        self.current_data = self.get_initial_data()
-
-    # completely unintuitively, listening for wether the name owner changed
-    # is how we figure out wether new services appear and already existing
-    # ones dissappear: new ones have the old empty and dissappearing ones the new
-    # empty.
-    def on_owner_change(self, bus_name, old, new):
-        assert not (old and new), "Player changed owner?!"
-
-        if self.matches(bus_name):
-            if new:
-                self.current_data["services"].add((bus_name, new))
-                self.current_data["new"] = (bus_name, new)
-                self.current_data["removed"] = (None, None)
-            if old:
-                self.current_data["services"].remove((bus_name, old))
-                self.current_data["new"] = (None, None)
-                self.current_data["removed"] = (bus_name, old)
-
-            self.poke()
-
-    def matches(self, service_name):
-        return bool(re.search(self.match_on, service_name))
-
-    def get_initial_data(self):
-        names = set(name for name in self.proxy.ListNames() if self.matches(name))
-
-        name_data = set()
-        for name in names:
-            unique_name = self.proxy.GetNameOwner(name)
-            name_data.add((name, unique_name))
-
-        return {"services": name_data}
+class MultiPokeMeta(PokeMeta):
+    def __new__(cls, cls_name, bases, attrs):
+        attrs["_class_providers"] = []
+        return super().__new__(cls, cls_name, bases, attrs)
 
 
-class MultiPoke(Poke):
+class MultiPoke(Poke, metaclass=MultiPokeMeta):
     poke_map: Dict[Hashable, Poke]
+    _class_providers: List["Provider"] = []
+    providers: List["Provider"]
 
     def __init__(self):
         super().__init__()
         self.poke_map = {}
         self.last_change_in = None
+        self.providers = self._class_providers[:]
 
-    def add_subpoke(self, key: Hashable, poke: Poke, initial=False):
+        self._registered = False
+
+    def register(self, parent):
+        super().register(parent)
+
+        for provider in self.providers:
+            provider.mpoke = self
+            provider.register(self)
+
+        self._registered = True
+
+    @abstractmethod
+    def create_subpoke(self, key: Hashable, *args) -> Poke:
+        pass
+
+    def add_subpoke(self, key: Hashable, *args):
+        self._add_subpoke(key, self.create_subpoke(key, *args))
+
+    def _add_subpoke(self, key: Hashable, poke: Poke):
         logger.debug(f"Adding subpoke {key}: {poke}")
 
-        poke.session_bus = self.session_bus
-        poke.system_bus = self.system_bus
-
         poke.add_handler(partial(self.on_proxy_change, key))
-        poke.register()
+        poke.register(self)
         self.poke_map[key] = poke
         self.last_change_in = key
 
-        if not initial:
+        if self._registered:
             self.poke()
 
     def remove_subpoke(self, key):
@@ -430,3 +411,131 @@ class MultiPoke(Poke):
             key: self.data_class(**poke.current_data)
             for key, poke in self.poke_map.items()
         }
+
+
+class Provider(ABC):
+    mpoke: MultiPoke
+
+    def __set_name__(self, mpoke_class: Type[MultiPoke], name):
+        mpoke_class._class_providers.append(self)
+        self.name = name
+
+    @abstractmethod
+    def register(self, mpoke: MultiPoke):
+        pass
+
+
+class MultiProxyPoke(MultiPoke, DBusMixin):
+    def __init__(self, *args, use_session_bus=True, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.use_session_bus = use_session_bus
+
+    def register(self, parent):
+        self.session_bus = parent.session_bus
+        self.system_bus = parent.system_bus
+
+        super().register(parent)
+
+
+class ProxyProvider(Provider, DBusMixin):
+    def register(self, mpoke: MultiProxyPoke):
+        super().register(mpoke)
+
+        self.session_bus = mpoke.session_bus
+        self.system_bus = mpoke.system_bus
+
+
+class DBUSServiceProvider(ProxyProvider):
+    proxy: Any
+
+    def __init__(self, match_on, *args, use_session_bus=True, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.use_session_bus = use_session_bus
+        self.match_on = match_on
+
+    def register(self, mpoke):
+        logger.debug(f"Registering {self}")
+        super().register(mpoke)
+
+        self.proxy = self.bus.get_proxy("org.freedesktop.DBus", "/org/freedesktop/DBus")
+
+        for service_name in self.proxy.ListNames():
+            if self.matches(service_name):
+                unique_name = self.proxy.GetNameOwner(service_name)
+                self.mpoke.add_subpoke(unique_name, service_name)
+
+        self.proxy.NameOwnerChanged.connect(self.on_owner_change)
+
+    # completely unintuitively, listening for wether the name owner changed
+    # is how we figure out wether new services appear and already existing
+    # ones dissappear: new ones have the old empty and dissappearing ones the new
+    # empty.
+    def on_owner_change(self, bus_name, old, new):
+        assert not (old and new), "Player changed owner?!"
+
+        if self.matches(bus_name):
+            if new:
+                self.mpoke.add_subpoke(new, bus_name)
+            if old:
+                self.mpoke.remove_subpoke(old)
+
+    def matches(self, service_name):
+        return bool(re.search(self.match_on, service_name))
+
+
+OBJ_MANAGER_INTERFACE = "org.freedesktop.DBus.ObjectManager"
+
+
+class DBusObjectsProvider(ProxyProvider):
+    obj_manager: Any
+    service_name: str
+    obj_manager_path: str = "/"
+    obj_manager: Any
+    interface_name: str
+
+    def __init__(
+        self,
+        *args,
+        service_name=None,
+        obj_manager_path=None,
+        interface_name=None,
+        use_session_bus=True,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+
+        self.use_session_bus = use_session_bus
+
+        if service_name:
+            self.service_name = service_name
+
+        if obj_manager_path:
+            self.obj_manager_path = obj_manager_path
+
+        if interface_name:
+            self.interface_name = interface_name
+
+    def register(self, mpoke: MultiPoke):
+        super().register(mpoke)
+        self.obj_manager = self.bus.get_proxy(
+            self.service_name,
+            self.obj_manager_path,
+            interface_name=OBJ_MANAGER_INTERFACE,
+        )
+        self.session_bus = mpoke.session_bus
+        self.system_bus = mpoke.system_bus
+
+        for obj_path, interfaces in self.obj_manager.GetManagedObjects().items():
+            if self.interface_name in interfaces:
+                self.mpoke.add_subpoke(obj_path)
+
+        self.obj_manager.InterfacesAdded.connect(self.on_added)
+        self.obj_manager.InterfacesRemoved.connect(self.on_removed)
+
+    def on_added(self, obj_path, interfaces):
+        if self.interface_name in interfaces:
+            self.mpoke.add_subpoke(obj_path)
+
+    def on_removed(self, obj_path, interfaces):
+        if self.interface_name in interfaces:
+            self.mpoke.remove_subpoke(obj_path)

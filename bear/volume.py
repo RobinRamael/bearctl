@@ -15,8 +15,8 @@ class VolumePoke(Poke):
         super().__init__(*args, **kwargs)
         self.pulse = pulsectl.Pulse("bear-volume")
 
-    def register(self):
-        super().register()
+    def register(self, parent):
+        super().register(parent)
 
         self._event = None
 

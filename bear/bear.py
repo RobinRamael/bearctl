@@ -5,6 +5,7 @@ from functools import wraps
 import inspect
 import logging
 import os
+import pprint
 from re import L
 import threading
 import time
@@ -290,8 +291,9 @@ class LabelBear(ViewableBear, ActionableBear):
 
 
 class BearView(ABC):
-    def __set_name__(self, owner: Bear, name):
-        owner._class_views.append(self)
+    def __set_name__(self, bear_cls: Bear, name):
+        self.bear = bear_cls
+        bear_cls._class_views.append(self)
 
     @abstractmethod
     def render(self, context):
@@ -308,18 +310,21 @@ class DebugView(BearView):
         else:
             self.keys = keys
 
-    def render(self, context):
-        from pprint import pprint
+    def __set_name__(self, bear_cls: Bear, name):
+        super().__set_name__(bear_cls, name)
+        self.logger = logging.getLogger(bear_cls.__module__)
 
+    def render(self, context):
         if not self.keys:
-            pprint(context)
+            msg = context
         elif len(self.keys) == 1:
-            pprint(context[self.keys[0]])
+            msg = context[self.keys[0]]
         else:
-            to_print = {}
+            msg = {}
             for f in self.keys:
-                to_print[f] = context.get(f, None)
-            pprint(to_print)
+                msg[f] = context.get(f, None)
+
+        self.logger.debug("data from debug view: \n" + pprint.pformat(msg))
 
 
 class Bears:

@@ -12,6 +12,7 @@ from bear.poke import (
     DBusObjectsProvider,
     MultiPoke,
     MultiProxyPoke,
+    OBJ_MANAGER_INTERFACE,
     Provider,
     ProxyPoke,
 )
@@ -77,23 +78,51 @@ class BluetoothDevicesPoke(MultiProxyPoke):
         return [poke.data for poke in self.poke_map.values()]
 
 
+class BluetoothAdapterPoke(ProxyPoke):
+    service_name = "org.bluez"
+    interface_name = "org.bluez.Adapter1"
+    use_session_bus = False
+
+    def get_proxy(self):
+        # sometimes the adapter has addres hci0, sometimes hci1, not sure why
+        # that happens but we can check which one it is right now with the bluez
+        # object manager:
+        object_manager = self.bus.get_proxy(
+            service_name=self.service_name,
+            object_path="/",
+            interface_name=OBJ_MANAGER_INTERFACE,
+        )
+        for obj_path, interfaces in object_manager.GetManagedObjects().items():
+            if self.interface_name in interfaces:
+                logger.info(f"Using bluetooth adapter {obj_path}")
+                return self.bus.get_proxy(self.service_name, obj_path)
+
+        raise Exception("No bluetooth adapter found.")
+
+
 @bears.recruit
 class BluetoothBear(Bear):
     name = "bluetooth"
+    adapter = BluetoothAdapterPoke(property_names=["powered", "discovering"])
     devices = BluetoothDevicesPoke()
 
-    # adapter = BluetoothAdapter()
-
-    debug = DebugView(keys=["connected", "paired", "primary"])
+    debug = DebugView()
 
     eww = EwwJSONView(var_name="bluetooth_devices")
 
     def build_context(self):
+        if not self.adapter.data["powered"]:
+            status = "error"
+        elif self.devices.connected_devices:
+            status = "connected"
+        elif self.adapter.data["discovering"]:
+            status = "discovering"
+        else:
+            status = "disconnected"
+
         return {
+            "status": status,
             "primary": self.devices.connected_devices[0]
             if self.devices.connected_devices
             else None,
-            "connected": self.devices.connected_devices,
-            "paired": self.devices.paired_devices,
-            "all": self.devices.all_devices,
         }

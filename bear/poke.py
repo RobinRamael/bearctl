@@ -165,7 +165,8 @@ class ProxyPoke(Poke, DBusMixin):
         if property_mapping:
             self.property_mapping = property_mapping
 
-        self.use_session_bus = use_session_bus
+        if not hasattr(self, "use_session_bus"):
+            self.use_session_bus = use_session_bus
 
     def register(self, parent):
         self.session_bus = parent.session_bus

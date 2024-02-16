@@ -265,7 +265,7 @@ class DevicePoke(ProxyPoke):
         data["strength"] = (
             self.access_point_poke.data.get("strength", 0)
             if self.access_point_poke
-            else None
+            else 0
         )
 
         return data

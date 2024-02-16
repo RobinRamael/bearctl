@@ -3,8 +3,8 @@ import threading
 
 import pulsectl
 
-from bear.bear import Bear, DebugView, bears
-from bear.eww import EwwPrefixView, EwwSingleVariableView
+from bear.bear import Bear, bears
+from bear.eww import EwwPrefixView
 from bear.poke import Poke
 
 logger = logging.getLogger(__name__)

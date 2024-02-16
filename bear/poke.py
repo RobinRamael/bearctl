@@ -3,26 +3,10 @@ from functools import partial
 import logging
 import re
 import time
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Generic,
-    Hashable,
-    List,
-    Optional,
-    Tuple,
-    Type,
-    TypeVar,
-)
+from typing import Any, Callable, Dict, Generic, Hashable, List, Optional, Type, TypeVar
 
 from dasbus.client.proxy import get_object_handler, get_object_path
-from dasbus.connection import (
-    AddressedMessageBus,
-    MessageBus,
-    SessionMessageBus,
-    SystemMessageBus,
-)
+from dasbus.connection import MessageBus, SessionMessageBus, SystemMessageBus
 from dasbus.constants import DBUS_FLAG_NONE
 from gi.repository import GLib
 

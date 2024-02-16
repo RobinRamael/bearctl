@@ -1,6 +1,5 @@
 from dataclasses import is_dataclass
 import os
-import sys
 from typing import Iterable, Mapping
 
 
@@ -9,19 +8,6 @@ def snake2camel(s, capitalize_first=True):
     if not capitalize_first:
         camel = camel[0:1].lower() + camel[1:]
     return camel
-
-
-class HiddenPrints:
-    def __init__(self):
-        self._original_stdout = None
-
-    def __enter__(self):
-        self._original_stdout = sys.stdout
-        sys.stdout = open(os.devnull, "w")
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        sys.stdout.close()
-        sys.stdout = self._original_stdout
 
 
 class BearLevel:

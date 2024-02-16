@@ -1,19 +1,15 @@
-from abc import abstractmethod
 from dataclasses import dataclass
 import logging
-from typing import Any, List, Tuple, TypeVar
+from typing import TypeVar
 
 from dataclasses_json import dataclass_json
 
 from bear.bear import Bear, DebugView, bears, dbus_method
 from bear.eww import EwwJSONView
 from bear.poke import (
-    DBusMixin,
     DBusObjectsProvider,
-    MultiPoke,
     MultiProxyPoke,
     OBJ_MANAGER_INTERFACE,
-    Provider,
     ProxyPoke,
 )
 

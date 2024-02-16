@@ -1,6 +1,5 @@
 import logging
-from os import access
-from typing import List, Optional
+from typing import Optional
 
 from dasbus.connection import SystemMessageBus
 

@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 import logging
 import threading
-import time
 
 from dasbus.connection import SessionMessageBus
 from dasbus.error import DBusError

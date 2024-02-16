@@ -2,15 +2,9 @@ import logging
 import threading
 from typing import Any, Callable, List, Optional
 
-from Xlib.protocol import event
-from i3ipc import (
-    Connection as I3Connection,
-    Event as I3Event,
-    WindowEvent,
-    WorkspaceEvent,
-)
+from i3ipc import Connection as I3Connection, Event as I3Event, WorkspaceEvent
 
-from bear.bear import Bear, DebugView, bears
+from bear.bear import Bear, bears
 from bear.eww import EwwJSONView, EwwPrefixView
 from bear.poke import Poke
 

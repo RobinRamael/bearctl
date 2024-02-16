@@ -6,9 +6,6 @@ import inspect
 import logging
 import os
 import pprint
-from re import L
-import threading
-import time
 from typing import Dict, List, Type
 
 from dasbus.connection import SessionMessageBus, SystemMessageBus
@@ -16,7 +13,6 @@ from dasbus.typing import get_dbus_type
 from dasbus.xml import XMLGenerator as DBusXML
 from gi.repository import GLib
 
-from bear.exceptions import DoubleBearException
 from bear.utils import in_debug_mode, snake2camel
 from bear.utils import snake2camel
 
@@ -226,6 +222,10 @@ class Bear(metaclass=BearMeta):
 
     def __str__(self):
         return f"{self.__class__.__name__}(name={self.name})"
+
+
+class DoubleBearException(Exception):
+    pass
 
 
 class ActionableBear(Bear):

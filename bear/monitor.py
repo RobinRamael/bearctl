@@ -1,7 +1,9 @@
 import logging
 import os
+import shutil
 from typing import Tuple
 
+import humanize
 import psutil
 
 from bear.bear import Bear, bears
@@ -50,3 +52,18 @@ class MemoryBear(MonitorBear):
     name = "memory"
     metric = PollingPoke(interval=1, poller=lambda: psutil.virtual_memory().percent)
     levels = (50, 80, 90)
+
+
+@bears.recruit
+class DiskSpaceBear(MonitorBear):
+    name = "disk"
+    metric = PollingPoke(interval=60, poller=lambda: shutil.disk_usage("/").free)
+    levels = (1, 5, 10)
+
+    def get_extra_context(self):
+        return {
+            "state": BearLevel.level_for_type_battery(
+                self.metric.data / 10**9, self.levels
+            ),
+            "metric": humanize.naturalsize(self.metric.data),
+        }

@@ -14,8 +14,9 @@ pipewire_python = "0.2.3"
 psutil = "5.9.8"
 i3ipc = "2.2.1"
 pulsectl = "23.5.2"
-dataclasses-json= "0.6.4"
-colorlog="6.8.2"
+dataclasses-json = "0.6.4"
+colorlog = "6.8.2"
+humanize = "4.9.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^6.0.0"

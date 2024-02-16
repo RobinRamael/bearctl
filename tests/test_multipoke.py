@@ -11,9 +11,10 @@ class MockMultiPoke(MultiPoke):
 
 
 @pytest.fixture
-def multipoke():
+def multipoke(mocker):
     mpoke = MockMultiPoke()
     mpoke.register(Mock())
+    patcher = mocker.patch("bear.poke.GLib.idle_add", new=lambda f, *x, **y: f())
     return mpoke
 
 

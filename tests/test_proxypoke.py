@@ -13,11 +13,13 @@ import pytest
 from bear.poke import ProxyPoke
 
 
-def test_poke_pokes_handlers():
+def test_poke_pokes_handlers(mocker):
     handler = Mock()
     poke = ProxyPoke()
 
     poke.add_handler(handler)
+
+    mocker.patch("bear.poke.GLib.idle_add", new=lambda f, *x, **y: f())
 
     poke.poke()
 
@@ -133,10 +135,11 @@ def bus():
     return SessionMessageBus()
 
 
-def test_proxy_poke(bus):
+def test_proxy_poke(bus, mocker):
     obj_path = "/my/testing/Example"
     service_name = "my.testing.Example"
 
+    mocker.patch("bear.poke.GLib.idle_add", new=lambda f, *x, **y: f())
     obj = ExampleInterface()
     bus.publish_object(obj_path, obj)
     bus.register_service(service_name)
@@ -157,7 +160,7 @@ def test_proxy_poke(bus):
     def t2():
         obj.Value = 3
 
-    run_test(t1, t2, timeout=0.1)
+    run_test(t1, t2, timeout=0.5)
 
     handler.assert_called_once_with()
     assert poke.current_data == {"value": 3}

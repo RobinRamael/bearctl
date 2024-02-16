@@ -147,7 +147,7 @@ def service(bear_names):
     bears.post_init()
 
     eww.bootstrap()
-    eww.listen_for_reloads()
+    # eww.listen_for_reloads()  # FIXME
 
     logger.info("Running loop")
     loop.run()

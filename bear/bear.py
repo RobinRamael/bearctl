@@ -174,12 +174,12 @@ class Bear(metaclass=BearMeta):
                 f"Failed to register path {path}. Is another instance of bearctl running?"
             )
 
+        for view in self.views:
+            view.register(self)
+
         for poke in self.pokes:
             poke.add_handler(self.update)
             poke.register(self)
-
-        for view in self.views:
-            view.register(self)
 
     @classmethod
     def get_client(cls, bus):
@@ -224,37 +224,8 @@ class Bear(metaclass=BearMeta):
         for poke in self.pokes:
             poke.post_init()
 
-
-class ViewableBear(Bear):
-    def __init__(self, bus, name, view):
-        super().__init__(bus, name)
-        self.view = view
-
-    # legacy purposes. can this be removed?
-    def update_view(self, msg, icon, status):
-        self.view.update(msg, icon, status)
-
-    def register(self):
-        super().register()
-        try:
-            self.initialize_view()
-        except Exception as e:
-            logger.exception(f"Failed to initalize view for {self.name}...")
-
-    def initialize_view(self):
-        pass
-
-    def refresh(self):
-        self.initialize_view()
-
-    def initialize_view(self):
-        self.update_widget()
-
-    def refresh(self):
-        self.initialize_view()
-
-    def update_widget(self):
-        raise NotImplementedError
+    def __str__(self):
+        return f"{self.__class__.__name__}(name={self.name})"
 
 
 class ActionableBear(Bear):
@@ -280,14 +251,6 @@ class ActionableBear(Bear):
 
     def on_double_left_click(self):
         pass
-
-
-class LabelBear(ViewableBear, ActionableBear):
-    def __init__(self, bus, name, icon, view, icon_off=None):
-        super().__init__(bus, name, view)
-        self.view = view
-        self.icon = icon
-        self.icon_off = icon_off or icon
 
 
 class BearView(ABC):
@@ -343,7 +306,7 @@ class Bears:
         try:
             bear = self.bear_classes[bear_name](self.session_bus, self.system_bus)
         except KeyError:
-            logger.error("{bear_name}?! Who is this bear?")
+            logger.error(f"{bear_name}?! Who is this bear?")
             return
 
         try:
@@ -356,7 +319,7 @@ class Bears:
             logger.info(f"succesfully registered {bear.name} bear")
         except Exception as e:
             logger.exception(
-                f"Encountered exception while starting {bear_name}, skipping.",
+                f"Encountered exception while starting {bear}, skipping.",
                 exc_info=True,
             )
 

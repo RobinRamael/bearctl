@@ -79,7 +79,7 @@ class Poke(metaclass=PokeMeta):
         self.last_change = time.time()
         logger.debug(f"{self} was poked, calling handlers {self.handlers}")
         for handler in self.handlers:
-            handler()
+            GLib.idle_add(handler, priority=GLib.PRIORITY_DEFAULT)
 
     def add_handler(self, h):
         self.handlers.append(h)

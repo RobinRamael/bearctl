@@ -287,7 +287,7 @@ class NetworkBear(Bear):
 
     device = DevicePoke(ip_interface="wlp4s0")
 
-    eww = EwwPrefixView(prefix="network", var_names=["id", "strength"])
+    eww = EwwPrefixView(prefix="network", var_names=["id", "strength", "status"])
     debug = DebugView()
 
     def get_extra_context(self):

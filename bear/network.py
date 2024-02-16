@@ -263,7 +263,7 @@ class DevicePoke(ProxyPoke):
         )
 
         data["strength"] = (
-            self.access_point_poke.data.get("strength", None)
+            self.access_point_poke.data.get("strength", 0)
             if self.access_point_poke
             else None
         )
@@ -287,13 +287,33 @@ class NetworkBear(Bear):
 
     device = DevicePoke(ip_interface="wlp4s0")
 
-    eww = EwwPrefixView(prefix="network", var_names=["id", "strength", "status"])
+    eww = EwwPrefixView(
+        prefix="network", var_names=["id", "strength_display", "status", "icon_name"]
+    )
     debug = DebugView()
 
     def get_extra_context(self):
-        if not self.device.data.get("id", None):
-            status = "disconnected"
-        else:
-            status = "connected"
+        ctx = super().get_extra_context()
+        network_id = self.device.data.get("id", None)
+        network_connected = bool(network_id)
 
-        return {"status": status}
+        ctx["id"] = network_id or ""
+
+        if not network_connected:
+            ctx["status"] = "disconnected"
+        else:
+            ctx["status"] = "connected"
+
+        if self.device.wireless:
+            strength = self.device.data.get("strength", 0)
+            ctx["strength_display"] = f"{strength}%" if network_connected else ""
+            if network_connected:
+                icon_idx = int(strength // (100 / 4))
+                ctx["icon_name"] = f"WIFI_STRENGTH_ICON_{icon_idx}"
+            else:
+                ctx["icon_name"] = "WIFI_OFF_ICON"
+
+        else:
+            ctx["icon_name"] = f"WIRED_NETWORK_{'ON' if network_connected else 'OFF'}"
+
+        return ctx

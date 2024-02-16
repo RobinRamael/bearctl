@@ -77,7 +77,7 @@ class Poke(metaclass=PokeMeta):
 
     def poke(self):
         self.last_change = time.time()
-        logger.info(f"{self} was poked, calling handlers {self.handlers}")
+        logger.debug(f"{self} was poked, calling handlers {self.handlers}")
         for handler in self.handlers:
             handler()
 

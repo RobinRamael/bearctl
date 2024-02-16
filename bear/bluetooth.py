@@ -110,6 +110,10 @@ class BluetoothAdapterPoke(ProxyPoke):
 
 @bears.recruit
 class BluetoothBear(Bear):
+    def __init__(self, session_bus, system_bus, debug=False):
+        self.busy = False
+        super().__init__(session_bus, system_bus, debug)
+
     name = "bluetooth"
     adapter = BluetoothAdapterPoke(property_names=["powered", "discovering"])
     devices = BluetoothDevicesPoke()
@@ -123,7 +127,7 @@ class BluetoothBear(Bear):
             status = "error"
         elif self.devices.connected_devices:
             status = "connected"
-        elif self.adapter.data["discovering"]:
+        elif self.adapter.data["discovering"] or self.busy:
             status = "discovering"
         else:
             status = "disconnected"
@@ -135,14 +139,23 @@ class BluetoothBear(Bear):
             else None,
         }
 
+    def set_busy(self, busy):
+        self.busy = busy
+        self.update()
+
     @dbus_method(str)
     def toggle_connect(self, address: str):
+        self.set_busy(True)
+
         subpoke = self.devices.get_subpoke_from_address(address)
         device_proxy = subpoke.proxy
 
-        if subpoke.data.connected:
-            logger.info(f"disconnecting {address}")
-            device_proxy.Disconnect()
-        else:
-            logger.info(f"connecting {address}")
-            device_proxy.Connect()
+        try:
+            if subpoke.data.connected:
+                logger.info(f"disconnecting {address}")
+                device_proxy.Disconnect()
+            else:
+                logger.info(f"connecting {address}")
+                device_proxy.Connect()
+        finally:
+            self.set_busy(False)

@@ -51,7 +51,12 @@ class VolumePoke(Poke):
 
     def on_event(self, ev):
         logger.debug(f"Received event from pulseaudio: %", ev)
-        self.current_data = {"volume": self.pulse.sink_info(ev.index).volume.values[0]}
+        if ev.t == pulsectl.PulseEventTypeEnum.remove:
+            sink = self.pulse.sink_list()[0]
+        else:
+            sink = self.pulse.sink_info(ev.index)
+
+        self.current_data = {"volume": sink.volume.values[0]}
         self.poke()
 
     def get_initial_data(self):

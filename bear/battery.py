@@ -83,7 +83,11 @@ class BatteryNotificationView(BearView):
     def render(self, context):
         battery_data = context["data"]
 
-        if battery_data.state in (BatteryState.CHARGING, BatteryState.PENDING_CHARGE):
+        if battery_data.state in (
+            BatteryState.CHARGING,
+            BatteryState.PENDING_CHARGE,
+            BatteryState.FULLY_CHARGED,
+        ):
             self.close_notification()
         elif battery_data.state == BatteryState.DISCHARGING:
             if battery_data.percentage < self.nag_lobound:

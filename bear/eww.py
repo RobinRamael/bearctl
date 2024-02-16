@@ -17,9 +17,8 @@ logger = logging.getLogger(__name__)
 
 
 class EwwLogsListener:
-    def __init__(
-        self,
-    ):
+    def __init__(self, executable):
+        self.executable = executable
         self.handlers: List[Callable[[], Any]] = []
 
     def listen(self):
@@ -27,7 +26,7 @@ class EwwLogsListener:
         logger.info("Listening for eww reloads")
 
     def _listen(self):
-        proc = subprocess.Popen(["eww", "logs"], stdout=subprocess.PIPE)
+        proc = subprocess.Popen([self.executable, "logs"], stdout=subprocess.PIPE)
 
         listen_start = datetime.now().astimezone()
 
@@ -57,12 +56,16 @@ class EwwLogsListener:
 
 class EwwController:
     def __init__(self):
-        self.listener = EwwLogsListener()
+        try:
+            self.executable: str = os.environ["EWW_EXECUTABLE"]
+        except KeyError:
+            self.executable = "eww"
 
-    def init(self):
-        pass
+        self.listener = EwwLogsListener(self.executable)
 
     def bootstrap(self):
+        logger.info(f"Using eww executable {self.executable}")
+
         try:
             executable_location = os.environ["BEARCTL_EXECUTABLE"]
             logger.debug("Found %s in env var", executable_location)
@@ -83,9 +86,8 @@ class EwwController:
         self.executable_var.set(command)
 
         self.debug_mode_var = self.var("DEBUG")
-        self.debug_mode_var.set(in_debug_mode())
+        self.debug_mode_var.set(str(in_debug_mode()).lower())
 
-        # subprocess.run(["eww", "update", f"BEARCTL={location}"])
         logger.info("Bootstrapped %s into eww variable", executable_location)
 
     def listen_for_reloads(self):
@@ -104,7 +106,7 @@ class EwwController:
             variables.append(assignment)
 
         logger.debug("Updating: %s", ", ".join(variables))
-        subprocess.run(["eww", "update", *variables])
+        subprocess.run([self.executable, "update", *variables])
 
     def var(self, name):
         v = EwwVariable(self, name)

@@ -55,7 +55,7 @@ class BearLevel:
 
 
 def in_debug_mode():
-    os.environ.get("DEBUG", False)
+    bool(os.environ.get("DEBUG", False))
 
 
 def to_full_dict(value):

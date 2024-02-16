@@ -4,7 +4,7 @@ import click
 from gi.repository import GLib
 
 from bear.bear import bears
-from bear.eww import eww
+from bear.eww import EwwController, eww
 
 logger = logging.getLogger()
 
@@ -61,7 +61,7 @@ def service(bear_names, eww_no_listen=False):
 
     eww.bootstrap()
     if not eww_no_listen:
-        eww.listen_for_reloads()  # FIXME
+        eww.listen_for_reloads()  # FIXME? sometimes this loops forever
 
     logger.info("Running loop")
     loop.run()

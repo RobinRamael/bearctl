@@ -5,7 +5,7 @@ from typing import Any, List, Tuple, TypeVar
 
 from dataclasses_json import dataclass_json
 
-from bear.bear import Bear, DebugView, bears
+from bear.bear import Bear, DebugView, bears, dbus_method
 from bear.eww import EwwJSONView
 from bear.poke import (
     DBusMixin,
@@ -64,6 +64,14 @@ class BluetoothDevicesPoke(MultiProxyPoke):
         )
 
         return poke
+
+    def get_subpoke_from_address(self, address):
+        try:
+            return next(
+                poke for poke in self.poke_map.values() if poke.data.address == address
+            )
+        except StopIteration:
+            raise Exception(f"No device with address {address} found.")
 
     @property
     def connected_devices(self):
@@ -126,3 +134,15 @@ class BluetoothBear(Bear):
             if self.devices.connected_devices
             else None,
         }
+
+    @dbus_method(str)
+    def toggle_connect(self, address: str):
+        subpoke = self.devices.get_subpoke_from_address(address)
+        device_proxy = subpoke.proxy
+
+        if subpoke.data.connected:
+            logger.info(f"disconnecting {address}")
+            device_proxy.Disconnect()
+        else:
+            logger.info(f"connecting {address}")
+            device_proxy.Connect()

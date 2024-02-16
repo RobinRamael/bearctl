@@ -73,7 +73,7 @@ def service(bear_names, eww_no_listen=False):
 @click.option("--silent", is_flag=True)
 @click.argument("command_args", nargs=-1)
 def client(name, command, command_args, silent=False):
-    logger = logging.getLogger()
+    logger = logging.getLogger("bear")
     if silent:
         logger.setLevel(logging.ERROR)
     else:

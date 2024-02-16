@@ -76,7 +76,7 @@ class BearClient:
             transformed_args.append(transformer(arg))
 
         if args:
-            logger.info(f"transformed args {args} to {transformed_args}")
+            logger.debug(f"transformed args {args} to {transformed_args}")
 
         camelName = snake2camel(name)
 

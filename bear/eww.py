@@ -27,6 +27,7 @@ class EwwLogsListener:
 
     def listen(self):
         Thread(target=self._listen, daemon=True).start()
+        logger.info("Listening for eww reloads")
 
     def _listen(self):
         proc = subprocess.Popen(["eww", "logs"], stdout=subprocess.PIPE)

@@ -44,7 +44,8 @@ def cli(color, verbosity):
 
 @cli.command()
 @click.argument("bear_names", nargs=-1)
-def service(bear_names):
+@click.option("--eww-no-listen", is_flag=True, default=False)
+def service(bear_names, eww_no_listen=False):
     loop = GLib.MainLoop()
 
     if not bear_names:
@@ -59,7 +60,8 @@ def service(bear_names):
     bears.post_init()
 
     eww.bootstrap()
-    # eww.listen_for_reloads()  # FIXME
+    if not eww_no_listen:
+        eww.listen_for_reloads()  # FIXME
 
     logger.info("Running loop")
     loop.run()

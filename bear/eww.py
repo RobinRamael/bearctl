@@ -17,16 +17,22 @@ logger = logging.getLogger(__name__)
 
 
 class EwwLogsListener:
-    def __init__(self, executable):
+    def __init__(self, executable, config_path):
         self.executable = executable
         self.handlers: List[Callable[[], Any]] = []
+        self.config_path = config_path
 
     def listen(self):
         Thread(target=self._listen, daemon=True).start()
         logger.info("Listening for eww reloads")
 
     def _listen(self):
-        proc = subprocess.Popen([self.executable, "logs"], stdout=subprocess.PIPE)
+        if self.config_path:
+            cmd = [self.executable, "-c", self.config_path, "logs"]
+        else:
+            cmd = [self.executable, "logs"]
+
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
 
         listen_start = datetime.now().astimezone()
 
@@ -61,10 +67,16 @@ class EwwController:
         except KeyError:
             self.executable = "eww"
 
-        self.listener = EwwLogsListener(self.executable)
+        self.config_path = os.environ.get("EWW_CONFIG", None)
+
+        self.listener = EwwLogsListener(self.executable, self.config_path)
 
     def bootstrap(self):
         logger.info(f"Using eww executable {self.executable}")
+        if self.config_path:
+            logger.info(f"Using eww config dir eww executable {self.config_path}")
+        else:
+            logger.info(f"Using default eww config dir")
 
         try:
             executable_location = os.environ["BEARCTL_EXECUTABLE"]
@@ -106,7 +118,14 @@ class EwwController:
             variables.append(assignment)
 
         logger.debug("Updating: %s", ", ".join(variables))
-        subprocess.run([self.executable, "update", *variables])
+
+        self.run("update", *variables)
+
+    def run(self, *args):
+        if self.config_path:
+            subprocess.run([self.executable, "-c", self.config_path, *args])
+        else:
+            subprocess.run([self.executable, *args])
 
     def var(self, name):
         v = EwwVariable(self, name)

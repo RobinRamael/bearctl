@@ -512,13 +512,14 @@ class DBUSServiceProvider(ProxyProvider):
     # ones dissappear: new ones have the old empty and dissappearing ones the new
     # empty.
     def on_owner_change(self, bus_name, old, new):
-        assert not (old and new), "Player changed owner?!"
+        if old and new:
+            logger.warning("Service changed owner. Do we handle this correctly?")
 
         if self.matches(bus_name):
-            if new:
-                self.poke.add_subpoke(new, bus_name)
             if old:
                 self.poke.remove_subpoke(old)
+            if new:
+                self.poke.add_subpoke(new, bus_name)
 
     def matches(self, service_name):
         return bool(re.search(self.match_on, service_name))

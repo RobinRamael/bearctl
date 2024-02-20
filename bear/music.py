@@ -81,8 +81,15 @@ class PlayerData:
         }
 
 
+class PlayerProvider(DBUSServiceProvider):
+    def matches(self, service_name):
+        return (
+            super().matches(service_name) and "whatsapp-for-linux" not in service_name
+        )
+
+
 class MPRISPlayerPropertiesPoke(MultiProxyPoke):
-    players = DBUSServiceProvider(match_on=MP2_BUS_NAME)
+    players = PlayerProvider(match_on=MP2_BUS_NAME)
     interface_name = MP2_PLAYER_INTERFACE
     data_class = PlayerData.from_props
     property_names = ["metadata", "playback_status"]

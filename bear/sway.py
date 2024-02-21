@@ -96,6 +96,9 @@ class I3Poke(Poke):
 
 
 def get_title(ev):
+    if ev.change == "init":
+        return {"title": ""}
+
     return {
         "title": ev.ipc_data["container"]["name"],
     }
@@ -105,7 +108,9 @@ def get_title(ev):
 class FocusedWindowBear(Bear):
     name = "focused"
 
-    i3_focus = I3Poke(event_types=[I3Event.WINDOW], data_from_event=get_title)
+    i3_focus = I3Poke(
+        event_types=[I3Event.WINDOW, I3Event.WORKSPACE_INIT], data_from_event=get_title
+    )
 
     view = EwwPrefixView(var_names=["title"])
 

@@ -59,6 +59,8 @@ class Poke(metaclass=PokeMeta):
         if initial:
             self.initial = initial
 
+        self.registered = False
+
     def poke(self):
         self.last_change = time.time()
         logger.debug(f"{self} was poked, calling handlers {self.handlers}")
@@ -66,7 +68,13 @@ class Poke(metaclass=PokeMeta):
             GLib.idle_add(handler, priority=GLib.PRIORITY_DEFAULT)
 
     def add_handler(self, h):
-        self.handlers.append(h)
+        def wrapped():
+            if not self.registered:
+                logger.warning("Trying to do an unregistered poke. Ignoring")
+                return
+            h()
+
+        self.handlers.append(wrapped)
 
     def __set_name__(self, owner, name):
         owner._class_pokes.append(self)
@@ -99,6 +107,8 @@ class Poke(metaclass=PokeMeta):
         logger.debug(f"Initial data for {self} set to {self.current_data}")
         self.last_change = time.time()
 
+        self.registered = True
+
     def add_subpoke(self, key, *args):
         raise NotImplementedError
 
@@ -106,7 +116,7 @@ class Poke(metaclass=PokeMeta):
         raise NotImplementedError
 
     def unregister(self):
-        pass
+        self.registered = False
 
     def update(self):
         raise NotImplementedError
@@ -235,10 +245,11 @@ class ProxyPoke(Poke, DBusMixin):
         )
 
     def unregister(self):
-        super().unregister()
         if not self._subscription_id:
             raise UnregisteredException
 
+        super().unregister()
+        logger.debug(f"Unregistering {self} from PropertiesChanged signal")
         self.bus.connection.signal_unsubscribe(self._subscription_id)
 
     def get_initial_data(self):
@@ -386,13 +397,6 @@ class MultiPoke(Poke):
         self.poke_map = {}
         self.last_change_in = None
 
-        self._registered = False
-
-    def register(self, parent):
-        super().register(parent)
-
-        self._registered = True
-
     @abstractmethod
     def create_subpoke(self, key: Hashable, *args) -> Poke:
         raise NotImplementedError
@@ -408,13 +412,12 @@ class MultiPoke(Poke):
         self.poke_map[key] = poke
         self.last_change_in = key
 
-        if self._registered:
+        if self.registered:
             self.poke()
 
     def remove_subpoke(self, key) -> Poke:
         proxy_poke = self.poke_map.pop(key)
         proxy_poke.unregister()
-        logger.debug(f"Removing subpoke {key}: {proxy_poke}")
 
         if self.poke_map:
             self.last_change_in, _ = max(
@@ -423,6 +426,10 @@ class MultiPoke(Poke):
             )
         else:
             self.last_change_in = None
+
+        logger.debug(
+            f"Removing subpoke {key}: {proxy_poke}, last change now in {self.last_change_in}"
+        )
 
         self.poke()
         return proxy_poke

@@ -20,6 +20,7 @@ def test_poke_pokes_handlers(mocker):
     poke.add_handler(handler)
 
     mocker.patch("bear.poke.GLib.idle_add", new=lambda f, *x, **y: f())
+    poke.registered = True
 
     poke.poke()
 

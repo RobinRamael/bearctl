@@ -393,8 +393,9 @@ class MultiPoke(Poke):
 
         self._registered = True
 
+    @abstractmethod
     def create_subpoke(self, key: Hashable, *args) -> Poke:
-        pass
+        raise NotImplementedError
 
     def add_subpoke(self, key: Hashable, *args):
         self._add_subpoke(key, self.create_subpoke(key, *args))
@@ -437,7 +438,13 @@ class MultiPoke(Poke):
             assert not self.poke_map
             return None
 
-        return self.data_class(**self.poke_map[self.last_change_in].current_data)
+        try:
+            return self.data_class(**self.poke_map[self.last_change_in].current_data)
+        except KeyError:
+            logger.error(
+                f"last changed key {self.last_change_in} was not found in {self.poke_map} of {self}"
+            )
+            return {}
 
     @property
     def all_data(self):

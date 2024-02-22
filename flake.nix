@@ -64,7 +64,8 @@
 
             });
             buildInputs =
-              (with pkgs; [ pkgs.pipewire pkgs.lorri pkgs.xorg.xset pkgs.i3 ]);
+              (with pkgs; [ pkgs.pipewire pkgs.lorri pkgs.xorg.xset pkgs.i3 pkgs.polybar pkgs.eww-wayland]);
+
           };
           default = self.packages.${system}.bear;
         };
@@ -72,6 +73,10 @@
         devShells.default = pkgs.mkShell {
           inputsFrom = [ self.packages.${system}.bear ];
           packages = [ pkgs.poetry ];
+          shellHook = ''
+            export PYTHONBREAKPOINT="ipdb.set_trace"
+            export BEARCTL_EXECUTABLE=/home/robin/devel/bearctl/result/bin/bearctl
+          '';
         };
       });
 }

@@ -1,12 +1,15 @@
+import logging
 from unittest.mock import Mock
 
 from lxml import etree, objectify
 
 from bear.bear import Bear, dbus_method
 
+logger = logging.getLogger()
+logger.setLevel(logging.ERROR)
+
 
 def assert_xml_equivalent(result, expected):
-
     obj1 = objectify.fromstring(expected)
     expect = etree.tostring(obj1)
     obj2 = objectify.fromstring(result)
@@ -16,16 +19,17 @@ def assert_xml_equivalent(result, expected):
 
 def test_xml():
     class TestBear(Bear):
-        @dbus_method
+        name = "test"
+
+        @dbus_method()
         def homti(self):
             pass
 
-        @dbus_method
+        @dbus_method()
         def tom(self):
             pass
 
-    bear = TestBear(bus=Mock(), name="test", view=Mock(), icon="bear")
-    print(bear.__dbus_xml__)
+    bear = TestBear(session_bus=Mock(), system_bus=Mock())
     expected_xml = """
         <node>
             <interface name="org.robinramael.bear.TestBear">
@@ -36,14 +40,16 @@ def test_xml():
     """
     assert_xml_equivalent(bear.__dbus_xml__, expected_xml)
 
+
 def test_xml_with_args():
     class TestBear(Bear):
-        @dbus_method
+        name = "test"
+
+        @dbus_method()
         def homti(self, n: int, name: str):
             pass
 
-    bear = TestBear(bus=Mock(), name="test", view=Mock(), icon="bear")
-    print(bear.__dbus_xml__)
+    bear = TestBear(session_bus=Mock(), system_bus=Mock())
     expected_xml = """
         <node>
             <interface name="org.robinramael.bear.TestBear">

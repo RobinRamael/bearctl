@@ -1,111 +1,67 @@
-from functools import wraps
 import logging
-import os
-import sys
 
 import click
-from dasbus.connection import SessionMessageBus, SystemMessageBus
-from dasbus.loop import EventLoop
 from gi.repository import GLib
 
-from bear.battery import Battery, BatteryBear
-from bear.bluetooth import BluetoothBear, BluezAdapter, DasBusBluetoothDevice
-from bear.dpms import DPMSBear
-from bear.exceptions import error_mapper
-from bear.icons import Icons
-from bear.lorri import LorriBear
-from bear.systemd import (
-    PauseableServiceLabelBear,
-    ServiceCtl,
-    ServiceLabelBear,
-    SystemdManager,
-)
-from bear.views import I3StatusBlock, NotificationCtl
-
-logging.basicConfig(stream=sys.stdout, level=logging.INFO)
-
+from bear.bear import bears
+from bear.eww import EwwController, eww
 
 logger = logging.getLogger()
 
 
-def build_bears():
-    session_bus = SessionMessageBus(error_mapper=error_mapper)
-    system_bus = SystemMessageBus(error_mapper=error_mapper)
-
-    sys_systemd_manager = SystemdManager(bus=system_bus)
-    bluetooth_service = ServiceCtl("bluetooth.service", systemd=sys_systemd_manager)
-
-    ses_systemd_manager = SystemdManager(bus=session_bus)
-
-    bears = [
-        BatteryBear(
-            bus=session_bus,
-            name="battery",
-            battery=Battery(system_bus),
-            nag_lobound=10,
-            notifications=NotificationCtl(session_bus=session_bus),
-        ),
-        # LorriBear(
-        #     bus=session_bus,
-        #     name="lorri",
-        #     icon=Icons.TROWEL,
-        #     view=I3StatusBlock(block_name="LorriBlock", session_bus=session_bus),
-        # ),
-        BluetoothBear(
-            name="bluephones",
-            bus=session_bus,
-            service=bluetooth_service,
-            device=DasBusBluetoothDevice(
-                mac_address="38:18:4C:E9:00:D8", bus=system_bus
-            ),
-            adapter=BluezAdapter(bus=system_bus),
-            view=I3StatusBlock(block_name="BluephonesBlock", session_bus=session_bus),
-            icon="bluetooth",
-        ),
-        PauseableServiceLabelBear(
-            name="redshift",
-            bus=session_bus,
-            servicectl=ServiceCtl(
-                service_name="gammastep.service", systemd=ses_systemd_manager
-            ),
-            view=I3StatusBlock(block_name="RedshiftBlock", session_bus=session_bus),
-            # view=Printer(),
-            icon=Icons.EYE,
-        ),
-        ServiceLabelBear(
-            name="dropbox",
-            bus=session_bus,
-            servicectl=ServiceCtl(
-                service_name="dropbox.service", systemd=ses_systemd_manager
-            ),
-            view=I3StatusBlock(block_name="DropboxBlock", session_bus=session_bus),
-            # view=Printer(),
-            icon=Icons.FOLDER,
-        ),
-        # DPMSBear(
-        #     name="dpms",
-        #     bus=session_bus,
-        #     view=I3StatusBlock(block_name="DPMSBlock", session_bus=session_bus),
-        #     icon=Icons.EYE,
-        # ),
-    ]
-
-    return bears
-
-
 @click.group()
-def cli():
-    pass
+@click.option("--color", is_flag=True)
+@click.option(
+    "--verbosity",
+    type=click.Choice(
+        ["critical", "error", "warning", "info", "debug"], case_sensitive=False
+    ),
+    default="info",
+)
+def cli(color, verbosity):
+    logger = logging.getLogger()
+    handler = logging.StreamHandler()
+
+    if color:
+        import colorlog
+
+        handler.setFormatter(
+            colorlog.ColoredFormatter(
+                "%(log_color)s%(levelname)-8s - %(asctime)s - %(name)s - %(message)s"
+            )
+        )
+    else:
+        handler.setFormatter(
+            logging.Formatter("%(levelname)-8s - %(asctime)s - %(name)s - %(message)s")
+        )
+
+    logger = logging.getLogger()
+    logger.handlers = [handler]
+    logger.setLevel(logging.getLevelName(verbosity.upper()))
+
+    logging.getLogger("dasbus").setLevel(logging.WARNING)
 
 
 @cli.command()
-def service():
+@click.argument("bear_names", nargs=-1)
+@click.option("--eww-no-listen", is_flag=True, default=False)
+def service(bear_names, eww_no_listen=False):
     loop = GLib.MainLoop()
 
-    for bear in build_bears():
-        bear.register()
+    if not bear_names:
+        bears.initalize_all()
+    else:
+        bears.initialize_some(bear_names)
 
-        logger.info(f"Sucessfully initialized {bear.name} bear")
+    if not bears.bears:
+        logger.critical("No viable bears... Exiting.")
+        exit(1)
+
+    bears.post_init()
+
+    eww.bootstrap()
+    if not eww_no_listen:
+        eww.listen_for_reloads()  # FIXME? sometimes this loops forever
 
     logger.info("Running loop")
     loop.run()
@@ -114,17 +70,20 @@ def service():
 @cli.command()
 @click.argument("name")
 @click.argument("command")
+@click.option("--silent", is_flag=True)
 @click.argument("command_args", nargs=-1)
-def client(name, command, command_args):
-    try:
-        bear = next(b for b in build_bears() if b.name == name)
-    except StopIteration:
-        print("who?")
-        exit(1)
+def client(name, command, command_args, silent=False):
+    logger = logging.getLogger("bear")
+    if silent:
+        logger.setLevel(logging.ERROR)
+    else:
+        logger.setLevel(logging.INFO)
 
-    client = bear.get_client()
+    client = bears.get_client(name)
 
     client.call(command, command_args)
+
+    logger.info("Ta-ta mr bear!")
 
 
 def main():

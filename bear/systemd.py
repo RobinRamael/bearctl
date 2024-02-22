@@ -1,14 +1,15 @@
+from dataclasses import dataclass
 import logging
 import threading
-import time
 
 from dasbus.connection import SessionMessageBus
 from dasbus.error import DBusError
 from gi.repository import GLib
 
-from bear.bear import LabelBear, dbus_method
+from bear.bear import ActionableBear, Bear, bears, dbus_method
+from bear.eww import EwwPrefixView
+from bear.poke import ProxyPoke
 from bear.utils import snake2camel
-from bear.views import BlockState
 
 SYSTEMD_BUS_NAME = "org.freedesktop.systemd1"
 SYSTEMD_PATH = "/org/freedesktop/systemd1"
@@ -16,18 +17,35 @@ SYSTEMD_MANAGER = "org.freedesktop.systemd1.Manager"
 
 logger = logging.getLogger(__name__)
 
-PAUSE_ICON = "\uf04c"
+
+class ServiceStates:
+    DISABLED = "disabled"
+    ENABLED = "enabled"
+    PAUSED = "paused"
 
 
 class SystemdManager:
     def __init__(self, bus):
         self.bus = bus
         self.manager = self.bus.get_proxy(SYSTEMD_BUS_NAME, SYSTEMD_PATH)
+        self.subscribed = False
+
+    def ensure_subscribed(self):
+        if not self.subscribed:
+            try:
+                self.manager.Subscribe()
+            except DBusError as e:
+                if not e.dbus_name == "org.freedesktop.systemd1.AlreadySubscribed":
+                    raise e
 
     def get_unit(self, service_name):
         path = self.manager.GetUnit(service_name)
         logger.info(f"Got unit with path {path}")
         return self.bus.get_proxy(SYSTEMD_BUS_NAME, path)
+
+
+session_bus = SessionMessageBus()
+session_systemd = SystemdManager(session_bus)
 
 
 class ServiceCtl:
@@ -37,28 +55,6 @@ class ServiceCtl:
         self.property_listeners = []
         self.unit = self.systemd.get_unit(self.service_name)
 
-    def get_properties(self):
-        return self.unit.GetAll("org.freedesktop.systemd1.Service")
-
-    def register_listener(self, func):
-        try:
-            self.systemd.manager.Subscribe()
-        except DBusError as e:
-            if not e.dbus_name == "org.freedesktop.systemd1.AlreadySubscribed":
-                raise e
-
-        if not self.property_listeners:
-            self.unit.PropertiesChanged.connect(self.on_properties_changed)
-
-        self.property_listeners.append(func)
-
-    def on_properties_changed(self, *args, **kwargs):
-        logger.debug("properties changed, notifying listeners")
-        for listener in self.property_listeners:
-            listener(*args, **kwargs)
-
-        logger.debug("notified all listeners")
-
     def __getattr__(self, name):
         try:
             return self.unit.Get(
@@ -67,106 +63,132 @@ class ServiceCtl:
         except GLib.GError:
             raise AttributeError
 
+
+@dataclass
+class ServiceState:
+    active_state: str
+    sub_state: str
+
     @property
     def stopped(self):
         return self.active_state != "active"
 
+
+class ServiceStatePoke(ProxyPoke):
+    data_class = ServiceState
+    interface_name = "org.freedesktop.systemd1.Unit"
+    # service_name
+
+    def __init__(
+        self, service_name, property_names=["active_state", "sub_state"], **kwargs
+    ):
+        super().__init__(property_names=property_names, **kwargs)
+        self.systemd_name = service_name
+
+    def get_proxy(self):
+        systemd = SystemdManager(self.bus)
+        systemd.ensure_subscribed()
+        return systemd.get_unit(self.systemd_name)
+
     def start(self):
-        self.unit.Start("replace")
+        self.proxy.Start("replace")
 
     def stop(self):
-        self.unit.Stop("replace")
+        self.proxy.Stop("replace")
 
 
-class ServiceLabelBear(LabelBear):
-    def __init__(self, *args, servicectl: ServiceCtl, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.servicectl = servicectl
+class SystemdServiceBear(Bear):
+    service: ServiceStatePoke
 
-    def on_property_change(self, name, changed_props, _):
-        if "ActiveState" in changed_props:
-            logger.info(
-                f"Received changed ActiveState in {self.name}, is {changed_props['ActiveState']}"
-            )
-            self.update_label()
+    def get_extra_context(self):
+        status = self.service.data.active_state
+        sub_status = self.service.data.sub_state
 
-    def register(self):
-        super().register()
-        self.servicectl.register_listener(self.on_property_change)
-
-    def update_label(self):
-        status = self.servicectl.active_state
-        sub_status = self.servicectl.sub_state
-
-        logger.debug(
-            f"updating label for {self.name} for service state {status}/{sub_status}"
-        )
-
-        if status == "active":
-            if sub_status == "running":
-                self.view.update_simple_icon(self.icon, BlockState.good)
-            else:
-                self.view.update("f{self.icon} {sub_status}", None, BlockState.warning)
-
+        if status == "active" and sub_status == "running":
+            state = ServiceStates.ENABLED
         else:
-            self.view.update_simple_icon(self.icon, BlockState.error)
+            state = ServiceStates.DISABLED
 
-    def initialize_view(self):
-        self.update_label()
+        return {"state": state}
 
     @dbus_method()
     def start(self):
-        self.servicectl.start()
+        self.service.start()
         logger.info(f"Started {self.name} service")
 
     @dbus_method()
     def stop(self):
         logger.debug(f"Stopping {self.name} service")
-        self.servicectl.stop()
+        self.service.stop()
         logger.info(f"Stopped {self.name} service")
 
-
-class RevivingThread(threading.Thread):
-    def __init__(self, servicectl, seconds):
-        super().__init__(daemon=True)
-        self.seconds = seconds
-        self.cancel_event = threading.Event()
-        self.servicectl = servicectl
-
-    def run(self):
-        time.sleep(self.seconds)
-        logger.debug("Reviving thread woke up")
-        if not self.cancel_event.is_set():
-            logger.debug("Restarting after pause")
-            self.servicectl.start()
+    @dbus_method(int)
+    def toggle(self):
+        logger.debug("toggle call received")
+        if self.service.data.stopped:
+            self.start()
         else:
-            logger.debug("Reviving thread was cancelled, not restarting the service.")
+            self.stop()
+
+    def on_left_click(self):
+        self.toggle()
 
 
-class PauseableServiceLabelBear(ServiceLabelBear):
-    def __init__(self, *args, **kwargs):
+class PauseableSystemdServiceBear(SystemdServiceBear, ActionableBear):
+    pause_interval: int = 5
+
+    def __init__(self, *args, pause_interval=0, **kwargs):
         super().__init__(*args, **kwargs)
         self.paused = False
         self.reviving_thread = None
+        if pause_interval:
+            self.pause_interval = pause_interval
+
+        self.cancel_pause_event = threading.Event()
+
+    def get_extra_context(self):
+        ctx = super().get_extra_context()
+
+        if self.service.data.stopped and self.paused:
+            ctx["state"] = ServiceStates.PAUSED
+
+        return ctx
 
     @dbus_method(int)
     def pause(self, seconds: int):
-        if self.servicectl.stopped:
+        if self.service.data.stopped:
             return
+
+        self.paused = True
 
         self.stop()
 
-        self.reviving_thread = RevivingThread(self.servicectl, seconds)
-        self.reviving_thread.start()
-        self.paused = True
+        def restart():
+            self.paused = False
+
+            if not self.cancel_pause_event.is_set():
+                self.start()
+            else:
+                logger.debug("No restart needed because pause was cancelled")
+
+            return False  # only do this once
+
+        self.cancel_pause_event.clear()
+        GLib.timeout_add_seconds(
+            priority=GLib.PRIORITY_DEFAULT, interval=seconds, function=restart
+        )
+
+        self.update()
 
         logger.debug(f"Paused {self.name} for {seconds} seconds")
 
-    @dbus_method(int)
+    @dbus_method()
     def start(self):
         super().start()
 
-        self.paused = False
+        if self.paused:
+            self.cancel_pause_event.set()
+            self.paused = False
 
         if self.reviving_thread:
             logger.debug("Cancelling reviving thread.")
@@ -175,17 +197,28 @@ class PauseableServiceLabelBear(ServiceLabelBear):
     @dbus_method(int)
     def toggle_pause(self, seconds: int):
         logger.debug("toggle_pause call received")
-        if self.servicectl.stopped:
+        if self.service.data.stopped:
             self.start()
             logger.info(f"service is stopped pause is {self.paused}, unpauseing.")
         else:
             self.pause(seconds)
 
     def on_left_click(self):
-        self.toggle_pause(3600)
+        self.toggle_pause(self.pause_interval)
 
-    def update_label(self):
-        if self.paused:
-            self.view.update_simple_icon(PAUSE_ICON, BlockState.warning)
-        else:
-            super().update_label()
+
+@bears.recruit
+class DropboxBear(SystemdServiceBear):
+    name = "dropbox"
+    service = ServiceStatePoke("dropbox.service")
+    view = EwwPrefixView(var_names=["state"])
+
+    def update(self):
+        return super().update()
+
+
+@bears.recruit
+class GammastepBear(PauseableSystemdServiceBear):
+    name = "gammastep"
+    service = ServiceStatePoke("gammastep.service")
+    view = EwwPrefixView(var_names=["state"])

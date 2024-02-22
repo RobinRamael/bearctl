@@ -1,81 +1,77 @@
 import logging
 import subprocess
-import threading
-import time
 
 from gi.repository import GLib
 
-from bear.bear import LabelBear, dbus_method
-from bear.icons import Icons
-from bear.views import BlockState
+from bear.bear import ActionableBear, bears, dbus_method
+from bear.eww import EwwPrefixView
+from bear.poke import PollingPoke
+from bear.systemd import ServiceStates
 
 logger = logging.getLogger(__name__)
 
 
-class DPMSPollThread(threading.Thread):
-    def __init__(self, dpms_bear, interval):
-        super().__init__(daemon=True)
-        self.dpms_bear = dpms_bear
-        self.interval = interval
+class DPMSPoke(PollingPoke):
+    single_value = False
 
-    def run(self):
-        while True:
-            time.sleep(self.interval)
-            logger.debug("Polling dpms")
-            self.dpms_bear.update_label()
-
-
-class DPMSBear(LabelBear):
-    def __init__(self, *args, poll_interval=10, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.poll_interval = poll_interval
-
-    def is_dpms_enabled(self):
+    def poll(self):
         proc = subprocess.run(["xset", "q"], check=True, stdout=subprocess.PIPE)
 
         for line in proc.stdout.decode().split("\n")[::-1]:
             if "DPMS is" in line:
                 line = line.strip()
                 if line == "DPMS is Disabled":
-                    return False
+                    return {"enabled": False}
                 elif line == "DPMS is Enabled":
-                    return True
+                    return {"enabled": True}
                 else:
                     raise Exception("Could not parse xset output")
 
         else:
             raise Exception("Unable to determine DPMS state, was not in xset output")
 
-    def register(self):
-        super().register()
+    def enable(self):
+        logger.debug("enabling dpms")
 
-        DPMSPollThread(self, self.poll_interval).start()
+        def _enable():
+            subprocess.run(["xset", "+dpms"], check=True)
+            logger.info("dpms successfully enabled")
 
-    def initialize_view(self):
-        self.update_label()
+        GLib.idle_add(_enable, priority=GLib.PRIORITY_DEFAULT)
 
-    def update_label(self):
-        if self.is_dpms_enabled():
-            self.update_view("on", "", BlockState.idle)
-        else:
-            self.update_view("off", "", BlockState.warning)
+        self.set_data({"enabled": True})
 
-    def enable_dpms(self):
-        logger.info("enabling dpms")
-        subprocess.run(["xset", "+dpms"], check=True)
+    def disable(self):
+        logger.debug("disabling dpms")
 
-    def disable_dpms(self):
-        logger.info("disabling dpms")
-        subprocess.run(["xset", "s", "off", "-dpms"], check=True)
+        def _disable():
+            subprocess.run(["xset", "s", "off", "-dpms"], check=True)
+            logger.info("dpms successfully enabled")
+
+        GLib.idle_add(_disable, priority=GLib.PRIORITY_DEFAULT)
+
+        self.set_data({"enabled": False})
+
+
+# @bears.recruit
+class DPMSBear(ActionableBear):
+    name = "dpms"
+    dpms = DPMSPoke(interval=5)
+    view = EwwPrefixView(var_names=["state"])
+
+    def get_extra_context(self):
+        return {
+            "state": ServiceStates.ENABLED
+            if self.dpms.data["enabled"]
+            else ServiceStates.DISABLED
+        }
 
     @dbus_method()
     def toggle(self):
-        if self.is_dpms_enabled():
-            self.disable_dpms()
+        if self.dpms.data["enabled"]:
+            self.dpms.disable()
         else:
-            self.enable_dpms()
+            self.dpms.enable()
 
-        self.update_label()
-
-    def on_right_click(self):
+    def on_left_click(self):
         self.toggle()

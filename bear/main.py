@@ -64,7 +64,10 @@ def service(bear_names, eww_no_listen=False):
         eww.listen_for_reloads()  # FIXME? sometimes this loops forever
 
     logger.info("Running loop")
-    loop.run()
+    try:
+        loop.run()
+    except KeyboardInterrupt:
+        bears.unregister()
 
 
 @cli.command()

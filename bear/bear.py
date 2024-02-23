@@ -286,7 +286,7 @@ class Bears:
     def __init__(self, system_bus, session_bus, debug=False):
         self.bear_classes: Dict[str, Type[Bear]] = {}
         self.bears: Dict[str, Bear] = {}
-        self.session_bus = session_bus
+        self.session_bus: SessionMessageBus = session_bus
         self.system_bus = system_bus
         self.debug = debug
 
@@ -330,6 +330,14 @@ class Bears:
             raise DoubleBearException(
                 f"Failed to register path {service_name}. Is another instance of bearctl running?",
             ) from e
+
+    def unregister(self):
+        if not self.debug:
+            service_name = f"org.robinramael.bear.BearCtl"
+        else:
+            service_name = "org.robinramael.bear.HomtiBearCtl"
+
+        self.session_bus.unregister_service(service_name)
 
     def initalize_all(self):
         self.register_service()

@@ -161,14 +161,6 @@ class Bear(metaclass=BearMeta):
         obj_name = f"/org/robinramael/bear/{dbus_name}"
         self.session_bus.publish_object(obj_name, self)
         logger.debug(f"published object {obj_name}")
-        path = f"org.robinramael.bear.{dbus_name}"
-        try:
-            self.session_bus.register_service(path)
-            logger.debug(f"registered service {path}")
-        except ConnectionError:
-            raise DoubleBearException(
-                f"Failed to register path {path}. Is another instance of bearctl running?"
-            )
 
         for view in self.views:
             view.register(self)
@@ -291,11 +283,12 @@ class DebugView(BearView):
 
 
 class Bears:
-    def __init__(self, system_bus, session_bus):
+    def __init__(self, system_bus, session_bus, debug=False):
         self.bear_classes: Dict[str, Type[Bear]] = {}
         self.bears: Dict[str, Bear] = {}
         self.session_bus = session_bus
         self.system_bus = system_bus
+        self.debug = debug
 
     def recruit(self, bear_class: Type[Bear]):
         logger.info(f"Recruiting bear of class {bear_class.__name__}")
@@ -325,11 +318,26 @@ class Bears:
                 exc_info=True,
             )
 
+    def register_service(self):
+        if not self.debug:
+            service_name = f"org.robinramael.bear.BearCtl"
+        else:
+            service_name = "org.robinramael.bear.HomtiBearCtl"
+        try:
+            self.session_bus.register_service(service_name)
+            logger.debug(f"registered service {service_name}")
+        except ConnectionError as e:
+            raise DoubleBearException(
+                f"Failed to register path {service_name}. Is another instance of bearctl running?",
+            ) from e
+
     def initalize_all(self):
+        self.register_service()
         for name in self.bear_classes.keys():
             self.initialize(name)
 
     def initialize_some(self, names):
+        self.register_service()
         for name in names:
             self.initialize(name)
 
@@ -341,4 +349,8 @@ class Bears:
         return self.bear_classes[name].get_client(self.session_bus)
 
 
-bears = Bears(session_bus=SessionMessageBus(), system_bus=SystemMessageBus())
+bears = Bears(
+    session_bus=SessionMessageBus(),
+    system_bus=SystemMessageBus(),
+    debug=in_debug_mode(),
+)

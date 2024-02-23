@@ -316,7 +316,9 @@ class Bears:
             GLib.idle_add(lambda: bear.update(), priority=GLib.PRIORITY_DEFAULT)
 
             self.bears[bear.name] = bear
-            logger.info(f"succesfully registered {bear.name} bear")
+            logger.info(
+                f"succesfully registered {bear.name} bear under {bear.get_dbus_name()}"
+            )
         except Exception as e:
             logger.exception(
                 f"Encountered exception while starting {bear}, skipping.",

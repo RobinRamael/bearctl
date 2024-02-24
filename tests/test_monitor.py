@@ -1,8 +1,10 @@
 from unittest.mock import ANY, Mock
+from unittest.mock import Mock
 
 import pytest
 
 from bear.monitor import BearLevel, LoadAverageBear
+from bear.monitor import CPUBear, LoadAverageBear, MemoryBear
 
 
 @pytest.fixture
@@ -13,7 +15,7 @@ def load_avg_bear(mocker):
     if hasattr(LoadAverageBear.metric, "bear"):
         del LoadAverageBear.metric.bear
 
-    bear = LoadAverageBear(session_bus=Mock(), system_bus=Mock())
+    bear = LoadAverageBear(session_bus=Mock())
 
     bear.levels = (
         2.3,
@@ -39,3 +41,30 @@ def test_warn_avg(load_avg_bear: LoadAverageBear, mocker):
     context = load_avg_bear.build_context()
 
     assert context["state"] == BearLevel.warning
+
+
+def test_cpubear():
+    bus = Mock()
+    bear = CPUBear(bus)
+
+    bear.register()
+    bear.metric.poll()
+    bear.update()
+
+
+def test_load_avg_bear():
+    bus = Mock()
+    bear = LoadAverageBear(bus)
+
+    bear.register()
+    bear.metric.poll()
+    bear.update()
+
+
+def test_memorybear():
+    bus = Mock()
+    bear = MemoryBear(bus)
+
+    bear.register()
+    bear.metric.poll()
+    bear.update()

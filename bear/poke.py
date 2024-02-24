@@ -10,7 +10,6 @@ from dasbus.connection import MessageBus, SessionMessageBus, SystemMessageBus
 from dasbus.constants import DBUS_FLAG_NONE
 from gi.repository import GLib
 
-from bear.bear import Bear
 from bear.utils import snake2camel
 
 T = TypeVar("T", bound=Type)
@@ -31,11 +30,8 @@ class PokeMeta(type):
 
 class Poke(metaclass=PokeMeta):
     data_class: Callable = dict
-    bear: Bear
     name: str
     current_data: Dict[Any, Any]
-    session_bus: SessionMessageBus
-    system_bus: SystemMessageBus
     last_change: float
     initial: Dict = {}
     providers: List["Provider"]
@@ -147,15 +143,29 @@ class ObjectManager:
 
 class DBusMixin:
     use_session_bus: bool
-    system_bus: SystemMessageBus
-    session_bus: SessionMessageBus
+    _system_bus: Optional[SystemMessageBus] = None
+    _session_bus: Optional[SessionMessageBus] = None
+
+    @property
+    def system_bus(self):
+        if not self._system_bus:
+            self._system_bus = SystemMessageBus()
+
+        return self._system_bus
+
+    @property
+    def session_bus(self):
+        if not self._session_bus:
+            self._session_bus = SessionMessageBus()
+
+        return self._session_bus
 
     @property
     def bus(self):
         if self.use_session_bus:
-            return SessionMessageBus()
+            return self.session_bus
         else:
-            return SystemMessageBus()
+            return self.system_bus
 
     def objectmanager_for(self, name, path):
         return ObjectManager(
@@ -219,8 +229,6 @@ class ProxyPoke(Poke, DBusMixin):
             self.use_session_bus = use_session_bus
 
     def register(self, parent):
-        self.session_bus = parent.session_bus
-        self.system_bus = parent.system_bus
         self.proxy = self.get_proxy()
 
         super().register(parent)
@@ -485,22 +493,8 @@ class MultiProxyPoke(MultiPoke, DBusMixin):
 
         self.use_session_bus = kwargs.pop("use_session_bus", self.use_session_bus)
 
-    def register(self, parent):
-        self.session_bus = parent.session_bus
-        self.system_bus = parent.system_bus
 
-        super().register(parent)
-
-
-class ProxyProvider(Provider, DBusMixin):
-    def register(self, poke: Poke):
-        super().register(poke)
-
-        self.session_bus = poke.session_bus
-        self.system_bus = poke.system_bus
-
-
-class DBUSServiceProvider(ProxyProvider):
+class DBUSServiceProvider(Provider, DBusMixin):
     proxy: Any
 
     def __init__(self, match_on, *args, use_session_bus=True, **kwargs):
@@ -539,6 +533,10 @@ class DBUSServiceProvider(ProxyProvider):
         return bool(re.search(self.match_on, service_name))
 
 
+class ProxyProvider(Provider, DBusMixin):
+    pass
+
+
 class DBusObjectsProvider(ProxyProvider):
     obj_manager: Any
     service_name: str
@@ -574,8 +572,6 @@ class DBusObjectsProvider(ProxyProvider):
         self.obj_manager = self.objectmanager_for(
             self.service_name, self.obj_manager_path
         )
-        self.session_bus = poke.session_bus
-        self.system_bus = poke.system_bus
 
         for obj_path, _ in self.obj_manager.get_objects_of_interface(
             self.interface_name

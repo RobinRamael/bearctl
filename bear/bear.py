@@ -126,12 +126,11 @@ class Bear(metaclass=BearMeta):
     # doesnt' set any views or pokes on itself, this can be False
 
     session_bus: SessionMessageBus
-    system_bus: SystemMessageBus
 
-    def __init__(self, session_bus, system_bus, debug=False):
-        self.session_bus = session_bus
-        self.system_bus = system_bus
+    def __init__(self, session_bus=None, debug=False):
+        self.session_bus = session_bus or SessionMessageBus()
         # todo: dasbus can do this for us probably
+
         dbus_name = self.get_dbus_name()
         self.__dbus_xml__ = generate_dbus_xml(
             f"org.robinramael.bear.{dbus_name}", self._dbus_methods
@@ -139,15 +138,11 @@ class Bear(metaclass=BearMeta):
 
         self.pokes = self._class_pokes[:]
 
-        for poke in self.pokes:
-            assert not hasattr(poke, "bear")
-            poke.bear = self
-
         self.views: List[BearView] = self._class_views[:]
         if not self.views:
             logger.warning("Bear %s has no views set!", self.name)
 
-        self.debug = os.environ.get("DEBUG", False)
+        self.debug = debug
 
     @classmethod
     def get_dbus_name(cls):
@@ -173,7 +168,7 @@ class Bear(metaclass=BearMeta):
     def get_client(cls, bus):
         dbus_name = cls.get_dbus_name()
         proxy = bus.get_proxy(
-            (f"org.robinramael.bear.{dbus_name}"),
+            get_service_name(),
             f"/org/robinramael/bear/{dbus_name}",
         )
 
@@ -282,13 +277,18 @@ class DebugView(BearView):
         self.logger.debug("data from debug view: \n" + pprint.pformat(msg))
 
 
+def get_service_name():
+    if not in_debug_mode():
+        return f"org.robinramael.bear.BearCtl"
+    else:
+        return "org.robinramael.bear.HomtiBearCtl"
+
+
 class Bears:
-    def __init__(self, system_bus, session_bus, debug=False):
+    def __init__(self):
         self.bear_classes: Dict[str, Type[Bear]] = {}
         self.bears: Dict[str, Bear] = {}
-        self.session_bus: SessionMessageBus = session_bus
-        self.system_bus = system_bus
-        self.debug = debug
+        self.session_bus = SessionMessageBus()
 
     def recruit(self, bear_class: Type[Bear]):
         logger.info(f"Recruiting bear of class {bear_class.__name__}")
@@ -297,7 +297,7 @@ class Bears:
 
     def initialize(self, bear_name):
         try:
-            bear = self.bear_classes[bear_name](self.session_bus, self.system_bus)
+            bear = self.bear_classes[bear_name](self.session_bus)
         except KeyError:
             logger.error(f"{bear_name}?! Who is this bear?")
             return
@@ -319,24 +319,17 @@ class Bears:
             )
 
     def register_service(self):
-        if not self.debug:
-            service_name = f"org.robinramael.bear.BearCtl"
-        else:
-            service_name = "org.robinramael.bear.HomtiBearCtl"
+        service_name = get_service_name()
         try:
             self.session_bus.register_service(service_name)
-            logger.debug(f"registered service {service_name}")
+            logger.info(f"registered service {service_name}")
         except ConnectionError as e:
             raise DoubleBearException(
                 f"Failed to register path {service_name}. Is another instance of bearctl running?",
             ) from e
 
     def unregister(self):
-        if not self.debug:
-            service_name = f"org.robinramael.bear.BearCtl"
-        else:
-            service_name = "org.robinramael.bear.HomtiBearCtl"
-
+        service_name = get_service_name()
         self.session_bus.unregister_service(service_name)
 
     def initalize_all(self):
@@ -357,8 +350,4 @@ class Bears:
         return self.bear_classes[name].get_client(self.session_bus)
 
 
-bears = Bears(
-    session_bus=SessionMessageBus(),
-    system_bus=SystemMessageBus(),
-    debug=in_debug_mode(),
-)
+bears = Bears()

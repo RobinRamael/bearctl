@@ -5,6 +5,7 @@ from gi.repository import GLib
 
 from bear.bear import bears
 from bear.eww import EwwController, eww
+from bear.utils import in_debug_mode
 
 logger = logging.getLogger()
 
@@ -81,6 +82,8 @@ def client(name, command, command_args, silent=False):
         logger.setLevel(logging.ERROR)
     else:
         logger.setLevel(logging.INFO)
+
+    logger.info(f"Debug mode is {'on' if in_debug_mode() else 'off'}")
 
     client = bears.get_client(name)
 

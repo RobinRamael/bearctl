@@ -2,6 +2,7 @@ import logging
 from unittest.mock import Mock
 
 from lxml import etree, objectify
+import pytest
 
 from bear.bear import Bear, dbus_method
 
@@ -17,7 +18,14 @@ def assert_xml_equivalent(result, expected):
     assert expect == result
 
 
-def test_xml():
+@pytest.fixture
+def debug_off(mocker):
+    mocker.patch("bear.bear.in_debug_mode", return_value=False)
+
+    return mocker
+
+
+def test_xml(debug_off):
     class TestBear(Bear):
         name = "test"
 
@@ -29,7 +37,7 @@ def test_xml():
         def tom(self):
             pass
 
-    bear = TestBear(session_bus=Mock(), system_bus=Mock())
+    bear = TestBear(session_bus=Mock(), debug=False)
     expected_xml = """
         <node>
             <interface name="org.robinramael.bear.TestBear">
@@ -41,7 +49,7 @@ def test_xml():
     assert_xml_equivalent(bear.__dbus_xml__, expected_xml)
 
 
-def test_xml_with_args():
+def test_xml_with_args(debug_off):
     class TestBear(Bear):
         name = "test"
 
@@ -49,7 +57,7 @@ def test_xml_with_args():
         def homti(self, n: int, name: str):
             pass
 
-    bear = TestBear(session_bus=Mock(), system_bus=Mock())
+    bear = TestBear(session_bus=Mock())
     expected_xml = """
         <node>
             <interface name="org.robinramael.bear.TestBear">

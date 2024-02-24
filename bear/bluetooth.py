@@ -106,9 +106,7 @@ class BluetoothAdapterPoke(ProxyPoke):
 
 @bears.recruit
 class BluetoothBear(Bear):
-    def __init__(self, session_bus, system_bus, debug=False):
-        self.busy = False
-        super().__init__(session_bus, system_bus, debug)
+    busy = False
 
     name = "bluetooth"
     adapter = BluetoothAdapterPoke(property_names=["powered", "discovering"])

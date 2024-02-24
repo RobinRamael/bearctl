@@ -30,9 +30,6 @@ class LoadAverageBear(MonitorBear):
     metric = PollingPoke(interval=5, poller=lambda: os.getloadavg())
     levels = (2, 3.2, 3.6)
 
-    def __init__(self, session_bus, system_bus):
-        super().__init__(session_bus, system_bus)
-
     def get_extra_context(self):
         return {
             "state": BearLevel.level_for(self.metric.data[0], self.levels),

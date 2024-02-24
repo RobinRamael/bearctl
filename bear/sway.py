@@ -97,8 +97,14 @@ class I3Poke(Poke):
 
 def get_title(ev):
     if ev.change == "init":
+        logger.debug("init workspace event received")
         return {"title": ""}
 
+    if ev.change == "close":
+        logger.debug("close window event received")
+        return {"title": ""}
+
+    logger.debug("change window event received")
     return {
         "title": ev.ipc_data["container"]["name"],
     }

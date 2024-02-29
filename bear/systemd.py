@@ -77,7 +77,7 @@ class ServiceState:
 class ServiceStatePoke(ProxyPoke):
     data_class = ServiceState
     interface_name = "org.freedesktop.systemd1.Unit"
-    # service_name
+    service_name = "org.freedesktop.systemd1"
 
     def __init__(
         self, service_name, property_names=["active_state", "sub_state"], **kwargs

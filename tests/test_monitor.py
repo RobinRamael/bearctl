@@ -1,10 +1,17 @@
 from unittest.mock import ANY, Mock
 from unittest.mock import Mock
-
-import pytest
+from unittest.mock import patch
 
 from bear.monitor import BearLevel, LoadAverageBear
 from bear.monitor import CPUBear, LoadAverageBear, MemoryBear
+import pytest
+
+
+@pytest.fixture
+def mocks(mocker):
+    run_sync = mocker.patch("bear.poke.GLib.idle_add", new=lambda f, *x, **y: f())
+
+    mock_eww = mocker.patch("bear.eww.EwwController")
 
 
 @pytest.fixture
@@ -43,27 +50,30 @@ def test_warn_avg(load_avg_bear: LoadAverageBear, mocker):
     assert context["state"] == BearLevel.warning
 
 
-def test_cpubear():
+def test_cpubear(mocks):
     bus = Mock()
     bear = CPUBear(bus)
+    bear.views = [Mock()]
 
     bear.register()
     bear.metric.poll()
     bear.update()
 
 
-def test_load_avg_bear():
+def test_load_avg_bear(mocks):
     bus = Mock()
     bear = LoadAverageBear(bus)
+    bear.views = [Mock()]
 
     bear.register()
     bear.metric.poll()
     bear.update()
 
 
-def test_memorybear():
+def test_memorybear(mocks):
     bus = Mock()
     bear = MemoryBear(bus)
+    bear.views = [Mock()]
 
     bear.register()
     bear.metric.poll()

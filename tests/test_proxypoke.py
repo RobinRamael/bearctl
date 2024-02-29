@@ -8,9 +8,9 @@ from dasbus.connection import SessionMessageBus
 from dasbus.server.interface import dbus_interface, dbus_signal
 from dasbus.typing import Dict, Int, List, Str, Variant, get_variant
 from gi.repository import GLib
-import pytest
 
 from bear.poke import ProxyPoke
+import pytest
 
 
 def test_poke_pokes_handlers(mocker):

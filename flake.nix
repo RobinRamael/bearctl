@@ -76,6 +76,8 @@
           shellHook = ''
             export PYTHONBREAKPOINT="ipdb.set_trace"
             export BEARCTL_EXECUTABLE=/home/robin/devel/bearctl/result/bin/bearctl
+            export DEBUG=1
+            export EWW_CONFIG=/home/robin/.config/home-manager/eww
           '';
         };
       });

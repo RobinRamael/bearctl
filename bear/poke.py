@@ -248,7 +248,7 @@ class ProxyPoke(Poke, DBusMixin):
             obj_path,
             None,
             DBUS_FLAG_NONE,
-            callback=self.on_property_change,
+            callback=self._on_property_change,
             user_data=(),
         )
 
@@ -273,22 +273,11 @@ class ProxyPoke(Poke, DBusMixin):
 
         return data
 
-    def on_property_change(
-        self,
-        connection,
-        sender_name,
-        object_path,
-        interface_name,
-        signal_name,
-        parameters,
-        user_data,
-    ):
+    def on_property_change(self, sender_name, changed):
         if not self.property_names:
             logger.warn(
                 f"Change was detected in {self}, but no property names were set."
             )
-
-        _, changed, __ = parameters
 
         change_detected = False
         for prop in self.property_names:
@@ -312,6 +301,19 @@ class ProxyPoke(Poke, DBusMixin):
             return self.property_mapping[s]
         except KeyError:
             return snake2camel(s, capitalize_first=self.capitalize_first)
+
+    def _on_property_change(
+        self,
+        connection,
+        sender_name,
+        object_path,
+        interface_name,
+        signal_name,
+        parameters,
+        user_data,
+    ):
+        _, changed, __ = parameters
+        self.on_property_change(sender_name, changed)
 
     def get_proxy(self):
         if not self.service_name:

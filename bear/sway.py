@@ -193,7 +193,7 @@ class I3UrgentWorkspacePoke(I3Poke):
 @bears.recruit
 class WorkspaceBear(Bear):
     name = "workspace"
-    current_mode = I3Poke(event_types=[I3Event.MODE])
+    # current_mode = I3Poke(event_types=[I3Event.MODE])
 
     focused = I3FocusedWorkspacePoke()
     urgent = I3UrgentWorkspacePoke()

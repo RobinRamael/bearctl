@@ -117,7 +117,7 @@ class BluetoothBear(Bear):
     eww = EwwJSONView(var_name="bluetooth_devices")
 
     def build_context(self):
-        if not self.adapter.data["powered"]:
+        if not self.adapter.data.get("powered", False):
             status = "error"
         elif self.devices.connected_devices:
             status = "connected"
@@ -128,9 +128,11 @@ class BluetoothBear(Bear):
 
         return {
             "status": status,
-            "primary": self.devices.connected_devices[0]
-            if self.devices.connected_devices
-            else None,
+            "primary": (
+                self.devices.connected_devices[0]
+                if self.devices.connected_devices
+                else None
+            ),
         }
 
     def set_busy(self, busy):

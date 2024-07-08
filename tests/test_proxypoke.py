@@ -8,9 +8,9 @@ from dasbus.connection import SessionMessageBus
 from dasbus.server.interface import dbus_interface, dbus_signal
 from dasbus.typing import Dict, Int, List, Str, Variant, get_variant
 from gi.repository import GLib
+import pytest
 
 from bear.poke import ProxyPoke
-import pytest
 
 
 def test_poke_pokes_handlers(mocker):
@@ -156,7 +156,7 @@ def test_proxy_poke(bus, mocker):
     poke.add_handler(handler)
 
     def t1():
-        poke.register(parent=Mock(session_bus=bus))
+        poke.register()
 
     def t2():
         obj.Value = 3

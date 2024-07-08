@@ -59,10 +59,8 @@ class WirelessStrenghtPoke(Poke, DBusMixin):
         self.ip_interface = ip_interface
         self.access_point_poke = None
 
-    def register(self, parent):
-        super().register(parent)
-        self.session_bus = parent.session_bus
-        self.system_bus = parent.system_bus
+    def register(self):
+        super().register()
 
         device_object_path = get_device_path_for(self.ip_interface)
 
@@ -126,12 +124,8 @@ class ActiveConnectionsPoke(Poke, DBusMixin):
 
     property_names = ["id", "Devices"]
 
-    def register(self, parent):
+    def register(self):
         self.device_object_path = get_device_path_for(self.ip_interface)
-
-        self.session_bus = parent.session_bus
-        self.system_bus = parent.system_bus
-        super().register(parent)
 
     def add_subpoke(self, obj_path: str, *args):
         proxy: Any = self.bus.get_proxy(
@@ -188,8 +182,8 @@ class DevicePoke(ProxyPoke):
         self.connection_poke = None
         self.access_point_poke = None
 
-    def register(self, parent):
-        super().register(parent)
+    def register(self):
+        super().register()
         self.check_children()
 
     def check_children(self):

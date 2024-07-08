@@ -162,7 +162,7 @@ class Bear(metaclass=BearMeta):
 
         for poke in self.pokes:
             poke.add_handler(self.update)
-            poke.register(self)
+            poke.register()
 
     @classmethod
     def get_client(cls, bus):

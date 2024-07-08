@@ -90,7 +90,7 @@ class Poke(metaclass=PokeMeta):
         self.current_data.update(new_data)
         self.poke()
 
-    def register(self, parent):
+    def register(self):
         for sub_poke in self.sub_pokes:
             sub_poke.add_handler(self.update)
             sub_poke.register(self)
@@ -228,10 +228,10 @@ class ProxyPoke(Poke, DBusMixin):
         if not hasattr(self, "use_session_bus"):
             self.use_session_bus = use_session_bus
 
-    def register(self, parent):
+    def register(self):
         self.proxy = self.get_proxy()
 
-        super().register(parent)
+        super().register()
 
         name = (
             self.unique_name
@@ -345,8 +345,8 @@ class PollingPoke(Poke, Generic[P]):
         self.poller = poller
         self.single_value = single_value
 
-    def register(self, parent):
-        super().register(parent)
+    def register(self):
+        super().register()
 
         GLib.timeout_add_seconds(
             priority=GLib.PRIORITY_DEFAULT,

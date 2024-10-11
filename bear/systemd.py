@@ -135,7 +135,7 @@ class SystemdServiceBear(Bear):
 
 
 class PauseableSystemdServiceBear(SystemdServiceBear, ActionableBear):
-    pause_interval: int = 5
+    pause_interval: int = 60 * 60
 
     def __init__(self, *args, pause_interval=0, **kwargs):
         super().__init__(*args, **kwargs)

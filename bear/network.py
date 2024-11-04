@@ -217,7 +217,7 @@ class DevicePoke(ProxyPoke):
             obj_path=obj_path,
             property_names=["id"],
         )
-        self.connection_poke.register(self)
+        self.connection_poke.register()
 
         self.connection_poke.add_handler(self.poke)
         self.poke()
@@ -235,7 +235,7 @@ class DevicePoke(ProxyPoke):
             use_session_bus=False,
             property_names=["strength"],
         )
-        self.access_point_poke.register(self)
+        self.access_point_poke.register()
         self.access_point_poke.add_handler(self.poke)
         self.poke()
 

@@ -25,7 +25,7 @@ def test_add_poke(multipoke):
     multipoke.add_subpoke("key1")
 
     handler.assert_called_once_with()
-    multipoke.poke_map["key1"].register.assert_called_once_with(multipoke)
+    multipoke.poke_map["key1"].register.assert_called_once_with()
     assert multipoke.last_change_in == "key1"
 
 

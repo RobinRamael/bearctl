@@ -418,7 +418,7 @@ class MultiPoke(Poke):
         logger.debug(f"Adding subpoke {key}: {poke}")
 
         poke.add_handler(partial(self.on_proxy_change, key))
-        poke.register(self)
+        poke.register()
         self.poke_map[key] = poke
         self.last_change_in = key
 

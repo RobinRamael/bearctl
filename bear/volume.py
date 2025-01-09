@@ -13,7 +13,14 @@ logger = logging.getLogger(__name__)
 class VolumePoke(Poke):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.pulse = pulsectl.Pulse("bear-volume")
+        self._pulse = None
+
+    @property
+    def pulse(self):
+        if not self._pulse:
+            self._pulse = pulsectl.Pulse("bear-volume")
+
+        return self._pulse
 
     def register(self):
         super().register()
@@ -64,6 +71,9 @@ class VolumePoke(Poke):
             return {"volume": self.pulse.sink_list()[0].volume.values[0]}
         except IndexError:
             logger.warning("No sinks found to display volume for")
+            return {"volume": 0}
+        except pulsectl.PulseError:
+            logger.exception("No sinks found to display volume for")
             return {"volume": 0}
 
 

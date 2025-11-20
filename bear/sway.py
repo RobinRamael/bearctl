@@ -2,13 +2,19 @@ import logging
 import threading
 from typing import Any, Callable, List, Optional
 
-from i3ipc import Connection as I3Connection, Event as I3Event, WorkspaceEvent
+from i3ipc import (
+    Con as I3Container,
+    Connection as I3Connection,
+    Event as I3Event,
+    WindowEvent as I3WindowEvent,
+    WorkspaceEvent,
+)
 
-from bear.bear import Bear, bears
+from bear.bear import Bear, bears, dbus_method
 from bear.eww import EwwJSONView, EwwPrefixView
 from bear.poke import Poke
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 class _I3:
@@ -28,6 +34,10 @@ class _I3:
         conn = self.get_connection()
         conn.on(event_type, handler)
         self.listened_to = True
+
+    def command(self, s):
+        conn = self.get_connection()
+        conn.command(s)
 
     def ensure_listening(self):
         if not self.listened_to:
@@ -160,8 +170,8 @@ class I3FocusedWorkspacePoke(I3Poke):
             )
         }
 
-    def data_from_event(self, ev):
-        return {"focused": ev.ipc_data["current"]["num"]}
+    def data_from_event(self, event):
+        return {"focused": event.ipc_data["current"]["num"]}
 
 
 def get_urgent_workspace(ev):
@@ -190,6 +200,53 @@ class I3UrgentWorkspacePoke(I3Poke):
         return {"urgent": self.current_data["urgent"]}
 
 
+class WorkspaceOpener:
+    def __init__(self):
+        self._current_container: Optional[I3Container] = None
+        self._window_opened = threading.Condition()
+        self._waiting_for_window = False
+
+    def register(self):
+        sway.on(I3Event.WINDOW_NEW, self.handle_opened)
+
+    def handle_opened(self, _, event: I3WindowEvent):
+        if not self._waiting_for_window:
+            logger.info("WorkspaceOpener was not waiting for opened window, skipping.")
+            return
+
+        with self._window_opened:
+            self._current_container = event.container
+
+            self._window_opened.notify()
+
+    def _wait_and_move_next_opened_to(self, workspace):
+        with self._window_opened:
+            self._waiting_for_window = True
+
+            logger.debug("waiting for opened window")
+            self._window_opened.wait()
+            self._waiting_for_window = False
+
+            assert self._current_container
+            logger.info(f"Moving to workspace {workspace}")
+            self._current_container.command(f"move to workspace {workspace}")
+            self._current_container = None
+
+    def open_firefox_window_in(self, url: str, workspace: int):
+        logger.info(f"Opening {url} in firefox")
+        sway.command(f"exec firefox --new-window {url}")
+
+        self._wait_and_move_next_opened_to(workspace)
+
+    def open_app_in(self, app_name, workspace):
+
+        logger.info(f"Opening {app_name}")
+
+        sway.command(f"exec {app_name}")
+
+        self._wait_and_move_next_opened_to(workspace)
+
+
 @bears.recruit
 class WorkspaceBear(Bear):
     name = "workspace"
@@ -201,6 +258,12 @@ class WorkspaceBear(Bear):
     workspaces = I3ActiveWorkspacesPoke()
 
     view = EwwJSONView(var_name="sway_workspaces", from_key="workspaces")
+
+    workspace_opener = WorkspaceOpener()
+
+    def register(self):
+        self.workspace_opener.register()
+        return super().register()
 
     def get_extra_context(self):
         ws_data = []
@@ -215,3 +278,14 @@ class WorkspaceBear(Bear):
             )
 
         return {"workspaces": ws_data}
+
+    @dbus_method(str, int)
+    def open_url_in_workspace(self, url: str, workspace: int):
+        self.workspace_opener.open_firefox_window_in(url, workspace)
+
+    # disabled because this is easier to do with workspace assignments in sway
+    # directly and having the app already open will block the thread
+    # indefinetly, which is fixable with checks or timeouts but why bother
+    # @dbus_method(str, int)
+    # def open_app_in_workspace(self, app_name: str, workspace: int):
+    #     self.workspace_opener.open_app_in(app_name, workspace)

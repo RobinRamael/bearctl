@@ -200,7 +200,7 @@ class I3UrgentWorkspacePoke(I3Poke):
         return {"urgent": self.current_data["urgent"]}
 
 
-class WorkspaceOpener:
+class WorkspaceURLOpener:
     def __init__(self):
         self._current_container: Optional[I3Container] = None
         self._window_opened = threading.Condition()
@@ -211,8 +211,16 @@ class WorkspaceOpener:
 
     def handle_opened(self, _, event: I3WindowEvent):
         if not self._waiting_for_window:
-            logger.info("WorkspaceOpener was not waiting for opened window, skipping.")
+            logger.debug(
+                f"{self.__class__.__name__} was not waiting for opened window, skipping."
+            )
             return
+
+        if (
+            not hasattr(event.container, "app_id")
+            or event.container.app_id != "firefox"
+        ):
+            logger.debug("opened window was not firefox, skipping.")
 
         with self._window_opened:
             self._current_container = event.container
@@ -238,14 +246,6 @@ class WorkspaceOpener:
 
         self._wait_and_move_next_opened_to(workspace)
 
-    def open_app_in(self, app_name, workspace):
-
-        logger.info(f"Opening {app_name}")
-
-        sway.command(f"exec {app_name}")
-
-        self._wait_and_move_next_opened_to(workspace)
-
 
 @bears.recruit
 class WorkspaceBear(Bear):
@@ -259,7 +259,7 @@ class WorkspaceBear(Bear):
 
     view = EwwJSONView(var_name="sway_workspaces", from_key="workspaces")
 
-    workspace_opener = WorkspaceOpener()
+    workspace_opener = WorkspaceURLOpener()
 
     def register(self):
         self.workspace_opener.register()
@@ -282,10 +282,3 @@ class WorkspaceBear(Bear):
     @dbus_method(str, int)
     def open_url_in_workspace(self, url: str, workspace: int):
         self.workspace_opener.open_firefox_window_in(url, workspace)
-
-    # disabled because this is easier to do with workspace assignments in sway
-    # directly and having the app already open will block the thread
-    # indefinetly, which is fixable with checks or timeouts but why bother
-    # @dbus_method(str, int)
-    # def open_app_in_workspace(self, app_name: str, workspace: int):
-    #     self.workspace_opener.open_app_in(app_name, workspace)

@@ -221,6 +221,7 @@ class WorkspaceURLOpener:
             or event.container.app_id != "firefox"
         ):
             logger.debug("opened window was not firefox, skipping.")
+            return
 
         with self._window_opened:
             self._current_container = event.container

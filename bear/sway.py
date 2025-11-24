@@ -10,7 +10,7 @@ from i3ipc import (
     WorkspaceEvent,
 )
 
-from bear.bear import Bear, bears, dbus_method
+from bear.bear import Bear, DebugView, bears, dbus_method
 from bear.eww import EwwJSONView, EwwPrefixView
 from bear.poke import Poke
 
@@ -22,7 +22,7 @@ class _I3:
 
     def __init__(self):
         self.connection = None
-        self.listened_to = False
+        self.handlers = set()
         self.running = False
 
     def get_connection(self) -> I3Connection:
@@ -33,14 +33,19 @@ class _I3:
     def on(self, event_type, handler):
         conn = self.get_connection()
         conn.on(event_type, handler)
-        self.listened_to = True
+        self.handlers.add(handler)
+
+    def off(self, handler):
+        conn = self.get_connection()
+        conn.off(handler)
+        self.handlers.remove(handler)
 
     def command(self, s):
         conn = self.get_connection()
         conn.command(s)
 
     def ensure_listening(self):
-        if not self.listened_to:
+        if not self.handlers:
             logger.info("Not starting i3 loop because no handlers were set")
             return
 
@@ -138,7 +143,7 @@ class I3ActiveWorkspacesPoke(I3Poke):
     ]
 
     def get_initial_data(self):
-        workspaces = i3.connection.get_workspaces()
+        workspaces = sway.get_connection().get_workspaces()
 
         return {"workspaces": {w.ipc_data["num"] for w in workspaces}}
 
@@ -161,7 +166,7 @@ class I3FocusedWorkspacePoke(I3Poke):
     event_types = [I3Event.WORKSPACE_FOCUS]
 
     def get_initial_data(self):
-        workspaces = i3.connection.get_workspaces()
+        workspaces = sway.get_connection().get_workspaces()
 
         return {
             "focused": next(
@@ -200,54 +205,6 @@ class I3UrgentWorkspacePoke(I3Poke):
         return {"urgent": self.current_data["urgent"]}
 
 
-class WorkspaceURLOpener:
-    def __init__(self):
-        self._current_container: Optional[I3Container] = None
-        self._window_opened = threading.Condition()
-        self._waiting_for_window = False
-
-    def register(self):
-        sway.on(I3Event.WINDOW_NEW, self.handle_opened)
-
-    def handle_opened(self, _, event: I3WindowEvent):
-        if not self._waiting_for_window:
-            logger.debug(
-                f"{self.__class__.__name__} was not waiting for opened window, skipping."
-            )
-            return
-
-        if (
-            not hasattr(event.container, "app_id")
-            or event.container.app_id != "firefox"
-        ):
-            logger.debug("opened window was not firefox, skipping.")
-            return
-
-        with self._window_opened:
-            self._current_container = event.container
-
-            self._window_opened.notify()
-
-    def _wait_and_move_next_opened_to(self, workspace):
-        with self._window_opened:
-            self._waiting_for_window = True
-
-            logger.debug("waiting for opened window")
-            self._window_opened.wait()
-            self._waiting_for_window = False
-
-            assert self._current_container
-            logger.info(f"Moving to workspace {workspace}")
-            self._current_container.command(f"move to workspace {workspace}")
-            self._current_container = None
-
-    def open_firefox_window_in(self, url: str, workspace: int):
-        logger.info(f"Opening {url} in firefox")
-        sway.command(f"exec firefox --new-window {url}")
-
-        self._wait_and_move_next_opened_to(workspace)
-
-
 @bears.recruit
 class WorkspaceBear(Bear):
     name = "workspace"
@@ -259,12 +216,6 @@ class WorkspaceBear(Bear):
     workspaces = I3ActiveWorkspacesPoke()
 
     view = EwwJSONView(var_name="sway_workspaces", from_key="workspaces")
-
-    workspace_opener = WorkspaceURLOpener()
-
-    def register(self):
-        self.workspace_opener.register()
-        return super().register()
 
     def get_extra_context(self):
         ws_data = []
@@ -280,6 +231,71 @@ class WorkspaceBear(Bear):
 
         return {"workspaces": ws_data}
 
-    @dbus_method(str, int)
-    def open_url_in_workspace(self, url: str, workspace: int):
-        self.workspace_opener.open_firefox_window_in(url, workspace)
+
+class WorkspaceURLOpener:
+    def __init__(self):
+        self._current_container: Optional[I3Container] = None
+        self._waiting_for_window = False
+
+        self._match_to_workspace: dict[str, int] = {}
+
+    def register_handler(self):
+        sway.on(I3Event.WINDOW, self.handle_opened)
+        sway.ensure_listening()
+
+    def unregister_handler(self):
+        sway.off(self.handle_opened)
+
+    def handle_opened(self, _, event: I3WindowEvent):
+        if not self._match_to_workspace:
+            logger.debug("Opener isn't waiting for anything, skipping.")
+            return
+
+        if (
+            not hasattr(event.container, "app_id")
+            or event.container.app_id != "firefox"
+        ):
+            logger.debug("Event was not on firefox window, skipping.")
+            return
+
+        if not event.change == "title":
+            logger.debug(f"Event was not title change, but {event.change}, skipping.")
+            return
+
+        for match in list(self._match_to_workspace.keys()):
+            if match in event.ipc_data["container"]["name"]:
+                logger.debug(
+                    f"Matched '{match}' with new title {event.ipc_data['container']['name']}"
+                )
+                ws = self._match_to_workspace[match]
+                logger.info(f"Moving container to workspace {ws}")
+                event.container.command(f"move to workspace {ws}")
+                self._match_to_workspace.pop(match)  # remove from dict
+
+        if not self._match_to_workspace:
+            logger.debug("Match dict empty again, unregistering handler")
+            self.unregister_handler()
+
+    def open_firefox_window_in(self, url: str, workspace: int, title_match: str):
+        logger.debug(f"Opening {url} in firefox")
+
+        if not self._match_to_workspace:
+            logger.debug("Match dict no longer empty, registering handler")
+            self.register_handler()
+
+        self._match_to_workspace[title_match] = workspace
+        sway.command(f"exec firefox --new-window {url}")
+
+
+@bears.recruit
+class OpenerBear(Bear):
+    name = "opener"
+
+    workspace_opener = WorkspaceURLOpener()
+
+    @dbus_method(str, int, str)
+    def open_url_in_workspace(self, url: str, workspace: int, title_match: str):
+        logger.info(
+            f"dbus called opener.open_url_in_workspace({url}, {workspace}, {title_match})"
+        )
+        self.workspace_opener.open_firefox_window_in(url, workspace, title_match)

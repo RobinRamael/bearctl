@@ -139,8 +139,6 @@ class Bear(metaclass=BearMeta):
         self.pokes = self._class_pokes[:]
 
         self.views: List[BearView] = self._class_views[:]
-        if not self.views:
-            logger.warning("Bear %s has no views set!", self.name)
 
         self.debug = debug
 

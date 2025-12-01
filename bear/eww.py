@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 from threading import Thread
+import time
 from typing import Any, Callable, Dict, List, Optional
 
 from bear.bear import Bear, BearView
@@ -128,9 +129,19 @@ class EwwController:
             return
 
         if self.config_path:
-            subprocess.run([self.executable, "-c", self.config_path, *args])
+            command = [self.executable, "-c", self.config_path, *args]
         else:
-            subprocess.run([self.executable, *args])
+            command = [self.executable, *args]
+
+        t_0 = time.time()
+
+        subprocess.run(command)
+
+        t_e = time.time()
+
+        command_str = " ".join(args)
+
+        logger.debug(f"Ran eww command '{command_str}' in {t_e - t_0} seconds")
 
     def var(self, name):
         v = EwwVariable(self, name)

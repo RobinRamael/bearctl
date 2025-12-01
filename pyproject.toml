@@ -5,7 +5,7 @@ description = "homtying an entire os"
 authors = ["Robin Ramael <robin.ramael@gmail.com>"]
 
 [tool.poetry.dependencies]
-# python = "3.11"
+python = "3.11.6"
 click = "^8.1.6"
 PyGObject = "^3.44.1"
 dasbus = "^1.7"

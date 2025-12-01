@@ -1,5 +1,6 @@
 import logging
 import threading
+import time
 from typing import Any, Callable, List, Optional
 
 from i3ipc import (
@@ -35,10 +36,14 @@ class _I3:
         conn.on(event_type, handler)
         self.handlers.add(handler)
 
-    def off(self, handler):
+    def ensure_off(self, handler):
         conn = self.get_connection()
         conn.off(handler)
-        self.handlers.remove(handler)
+
+        try:
+            self.handlers.remove(handler)
+        except KeyError:
+            pass
 
     def command(self, s):
         conn = self.get_connection()
@@ -233,57 +238,95 @@ class WorkspaceBear(Bear):
 
 
 class WorkspaceURLOpener:
-    def __init__(self):
+    def __init__(self, wait_seconds=2):
         self._current_container: Optional[I3Container] = None
         self._waiting_for_window = False
 
         self._match_to_workspace: dict[str, int] = {}
+
+        self._lock = threading.Lock()
+        self.wait_seconds = wait_seconds
 
     def register_handler(self):
         sway.on(I3Event.WINDOW, self.handle_opened)
         sway.ensure_listening()
 
     def unregister_handler(self):
-        sway.off(self.handle_opened)
+        sway.ensure_off(self.handle_opened)
 
     def handle_opened(self, _, event: I3WindowEvent):
+
+        if not event.change == "title":
+            return
+
+        title: str = event.ipc_data.get("container", {}).get("name")
+
         if not self._match_to_workspace:
-            logger.debug("Opener isn't waiting for anything, skipping.")
+            logger.warning(
+                f"Opener isn't waiting for anything, skipping. "
+                f"(was {event.change} on {event.container.app_id} with title {title})"
+            )
             return
 
         if (
             not hasattr(event.container, "app_id")
             or event.container.app_id != "firefox"
+            or not title
         ):
-            logger.debug("Event was not on firefox window, skipping.")
-            return
-
-        if not event.change == "title":
-            logger.debug(f"Event was not title change, but {event.change}, skipping.")
+            logger.debug(
+                f"Event was not a valid title change on firefox, skipping"
+                f"(was {event.change} on {event.container.app_id} with title {title})"
+            )
             return
 
         for match in list(self._match_to_workspace.keys()):
             if match in event.ipc_data["container"]["name"]:
                 logger.debug(
-                    f"Matched '{match}' with new title {event.ipc_data['container']['name']}"
+                    f"Matched '{match}' with new title "
+                    f"{event.ipc_data['container']['name']}"
                 )
                 ws = self._match_to_workspace[match]
                 logger.info(f"Moving container to workspace {ws}")
                 event.container.command(f"move to workspace {ws}")
-                self._match_to_workspace.pop(match)  # remove from dict
+
+                # the weird firefox thing we're using to open certain urls in borderless mode
+                # by default (sometimes? this only happens with whatsapp atm) will close
+                # the original window and then open a new one right after, so we have to
+                # wait a few seconds before not responding to title matches anymore:
+                threading.Thread(
+                    target=lambda: self.remove_from_cache_in(match, self.wait_seconds)
+                ).start()
+
+    def remove_from_cache_in(self, match: str, seconds: int):
+        logger.debug(f"waiting {seconds} seconds before removing {match}")
+        time.sleep(seconds)
+        self.remove_from_cache(match)
+
+    def remove_from_cache(self, match):
+        self._lock.acquire()
+        self._match_to_workspace.pop(match, None)
 
         if not self._match_to_workspace:
             logger.debug("Match dict empty again, unregistering handler")
             self.unregister_handler()
+        self._lock.release()
 
-    def open_firefox_window_in(self, url: str, workspace: int, title_match: str):
-        logger.debug(f"Opening {url} in firefox")
+        logger.debug(f"removed {match} from cache")
+
+    def add_to_cache(self, match, workspace):
+        self._lock.acquire()
 
         if not self._match_to_workspace:
             logger.debug("Match dict no longer empty, registering handler")
             self.register_handler()
 
-        self._match_to_workspace[title_match] = workspace
+        self._match_to_workspace[match] = workspace
+        logger.debug(f"added {match} to cache")
+        self._lock.release()
+
+    def open_firefox_window_in(self, url: str, workspace: int, title_match: str):
+        logger.debug(f"Opening {url} in firefox")
+        self.add_to_cache(title_match, workspace)
         sway.command(f"exec firefox --new-window {url}")
 
 

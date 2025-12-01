@@ -1,4 +1,3 @@
-from dataclasses import is_dataclass
 from datetime import datetime
 import json
 import logging
@@ -61,7 +60,7 @@ class EwwLogsListener:
 
 
 class EwwController:
-    def __init__(self):
+    def __init__(self, dry_run=False):
         try:
             self.executable: str = os.environ["EWW_EXECUTABLE"]
         except KeyError:
@@ -70,6 +69,8 @@ class EwwController:
         self.config_path = os.environ.get("EWW_CONFIG", None)
 
         self.listener = EwwLogsListener(self.executable, self.config_path)
+
+        self.dry_run = dry_run
 
     def bootstrap(self):
         logger.info(f"Using eww executable {self.executable}")
@@ -122,6 +123,10 @@ class EwwController:
         self.run("update", *variables)
 
     def run(self, *args):
+        if self.dry_run:
+            logger.debug("eww dry run set to True, not actually running eww executable")
+            return
+
         if self.config_path:
             subprocess.run([self.executable, "-c", self.config_path, *args])
         else:

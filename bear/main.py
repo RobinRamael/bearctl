@@ -46,7 +46,8 @@ def cli(color, verbosity):
 @cli.command()
 @click.argument("bear_names", nargs=-1)
 @click.option("--eww-no-listen", is_flag=True, default=False)
-def service(bear_names, eww_no_listen=False):
+@click.option("--no-eww", is_flag=True, default=False)
+def service(bear_names, eww_no_listen=False, no_eww=False):
     loop = GLib.MainLoop()
 
     if not bear_names:
@@ -60,8 +61,9 @@ def service(bear_names, eww_no_listen=False):
 
     bears.post_init()
 
+    eww.dry_run = no_eww
     eww.bootstrap()
-    if not eww_no_listen:
+    if not no_eww and not eww_no_listen:
         eww.listen_for_reloads()  # FIXME? sometimes this loops forever
 
     logger.info("Running loop")

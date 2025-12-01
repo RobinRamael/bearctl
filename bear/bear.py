@@ -173,7 +173,9 @@ class Bear(metaclass=BearMeta):
         return BearClient(cls, proxy)
 
     def refresh(self):
-        pass
+        logger.debug(f"Refreshing {self.name}")
+        self.update()
+        logger.info(f"Refreshed {self.name}")
 
     def get_extra_context(self):
         return {}
@@ -277,7 +279,7 @@ class DebugView(BearView):
 
 def get_service_name():
     if not in_debug_mode():
-        return f"org.robinramael.bear.BearCtl"
+        return "org.robinramael.bear.BearCtl"
     else:
         return "org.robinramael.bear.HomtiBearCtl"
 
@@ -293,7 +295,7 @@ class Bears:
         self.bear_classes[bear_class.name or str(bear_class)] = bear_class
         return bear_class
 
-    def initialize(self, bear_name):
+    def _initialize(self, bear_name):
         try:
             bear = self.bear_classes[bear_name](self.session_bus)
         except KeyError:
@@ -331,21 +333,43 @@ class Bears:
         self.session_bus.unregister_service(service_name)
 
     def initalize_all(self):
-        self.register_service()
-        for name in self.bear_classes.keys():
-            self.initialize(name)
+        self.initialize_some(self.bear_classes.keys() - {"control"})
 
     def initialize_some(self, names):
+        if "control" in names:
+            raise Exception(
+                "ControlBear does not need to be listed, it will always be included"
+            )
+
         self.register_service()
         for name in names:
-            self.initialize(name)
+            self._initialize(name)
+
+        self._initialize("control")
 
     def post_init(self):
         for bear in self.bears.values():
             bear.post_init()
+
+    def refresh_all(self):
+        logger.info("Refreshing all running bears")
+        for bear in self.bears.values():
+            bear.refresh()
 
     def get_client(self, name) -> BearClient:
         return self.bear_classes[name].get_client(self.session_bus)
 
 
 bears = Bears()
+
+
+@bears.recruit
+class ControlBear(Bear):
+    name = "control"
+
+    @dbus_method()
+    def refresh_all(self):
+        bears.refresh_all()
+
+    def refresh(self):
+        pass

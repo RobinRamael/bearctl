@@ -350,7 +350,7 @@ class PollingPoke(Poke, Generic[P]):
 
         GLib.timeout_add_seconds(
             priority=GLib.PRIORITY_DEFAULT,
-            function=self._do_poll,
+            function=self.do_poll,
             interval=self.interval,
         )
         logger.debug(f"polling enabled in {self}")
@@ -364,7 +364,7 @@ class PollingPoke(Poke, Generic[P]):
         else:
             return f"{self.__class__.__name__}()"
 
-    def _do_poll(self):
+    def do_poll(self):
         prev_data = self.current_data
         logger.debug(f"polling in {self}")
         self.current_data = self.poll()

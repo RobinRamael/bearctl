@@ -16,9 +16,13 @@ logger = logging.getLogger(__name__)
 
 class MonitorBear(Bear):
     levels: Tuple[float, float, float]
-    metric: Poke
+    metric: PollingPoke
     view = EwwPrefixView(var_names=["metric", "state"])
     abstract = True
+
+    def refresh(self):
+        self.metric.do_poll()
+        super().refresh()
 
     def get_extra_context(self):
         return {"state": BearLevel.level_for(self.metric.data, self.levels)}

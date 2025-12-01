@@ -2,9 +2,10 @@ from unittest.mock import ANY, Mock
 from unittest.mock import Mock
 from unittest.mock import patch
 
+import pytest
+
 from bear.monitor import BearLevel, LoadAverageBear
 from bear.monitor import CPUBear, LoadAverageBear, MemoryBear
-import pytest
 
 
 @pytest.fixture
@@ -35,7 +36,7 @@ def load_avg_bear(mocker):
 def test_low_avg(load_avg_bear, mocker):
     mocker.patch("os.getloadavg", return_value=(7.5, 1, 1))
 
-    load_avg_bear.metric._do_poll()
+    load_avg_bear.metric.do_poll()
     context = load_avg_bear.build_context()
 
     assert context["state"] == BearLevel.error
@@ -44,7 +45,7 @@ def test_low_avg(load_avg_bear, mocker):
 def test_warn_avg(load_avg_bear: LoadAverageBear, mocker):
     mocker.patch("os.getloadavg", return_value=(5.5, 1, 1))
 
-    load_avg_bear.metric._do_poll()
+    load_avg_bear.metric.do_poll()
     context = load_avg_bear.build_context()
 
     assert context["state"] == BearLevel.warning

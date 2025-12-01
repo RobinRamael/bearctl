@@ -38,9 +38,7 @@ def cli(color, verbosity):
 
     logger = logging.getLogger()
     logger.handlers = [handler]
-    logger.setLevel(logging.getLevelName(verbosity.upper()))
-
-    logging.getLogger("dasbus").setLevel(logging.WARNING)
+    logger.setLevel(verbosity.upper())
 
 
 @cli.command()

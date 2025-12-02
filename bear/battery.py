@@ -124,7 +124,7 @@ class BatteryBear(Bear):
         ctx["percentage"] = f"{self.battery.data.percentage:.0f}"
 
         if self.battery.data.is_charging:
-            ctx["status"] = BearLevel.idle
+            ctx["status"] = BearLevel.info
         else:
             ctx["status"] = BearLevel.level_for_type_battery(
                 self.battery.data.percentage, self.levels

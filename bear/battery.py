@@ -40,7 +40,7 @@ class BatteryData:
         )
 
 
-class BatteryPoker(ProxyPoke):
+class BatteryPoke(ProxyPoke):
     property_names = ["percentage", "state"]
     interface_name = UPOWER_DEVICE_INTERFACE
     data_class = BatteryData
@@ -105,7 +105,7 @@ class BatteryNotificationView(BearView):
 @bears.recruit
 class BatteryBear(Bear):
     name = "battery"
-    battery = BatteryPoker("DisplayDevice")
+    battery = BatteryPoke("DisplayDevice")
     view = EwwPrefixView(var_names=["is_charging", "icon_name", "percentage", "status"])
     notification = BatteryNotificationView(nag_lobound=10)
     levels = (10, 20, 100)
@@ -123,9 +123,12 @@ class BatteryBear(Bear):
 
         ctx["percentage"] = f"{self.battery.data.percentage:.0f}"
 
-        ctx["status"] = BearLevel.level_for_type_battery(
-            self.battery.data.percentage, self.levels
-        )
+        if self.battery.data.is_charging:
+            ctx["status"] = BearLevel.idle
+        else:
+            ctx["status"] = BearLevel.level_for_type_battery(
+                self.battery.data.percentage, self.levels
+            )
 
         ctx["data"] = self.battery.data
 

@@ -78,6 +78,16 @@
             export BEARCTL_EXECUTABLE=/home/robin/devel/bearctl/result/bin/bearctl
             export DEBUG=1
             export EWW_CONFIG=/home/robin/.config/home-manager/eww
+            export EWW_EXECUTABLE=/home/robin/.nix-profile/bin/eww
+
+
+            run_eww() {
+              $EWW_EXECUTABLE -c $EWW_CONFIG kill
+              $EWW_EXECUTABLE -c $EWW_CONFIG daemon
+              $EWW_EXECUTABLE -c $EWW_CONFIG open top-bar
+              $EWW_EXECUTABLE -c $EWW_CONFIG open bottom-bar
+              $EWW_EXECUTABLE -c $EWW_CONFIG logs
+            }
           '';
         };
       });

@@ -24,13 +24,22 @@ class EwwLogsListener:
 
     def listen(self):
         Thread(target=self._listen, daemon=True).start()
-        logger.info("Listening for eww reloads")
 
     def _listen(self):
         if self.config_path:
             cmd = [self.executable, "-c", self.config_path, "logs"]
         else:
             cmd = [self.executable, "logs"]
+
+        version = subprocess.run(
+            [self.executable, "--version"], stdout=subprocess.PIPE
+        ).stdout.decode()
+
+        logger.info(f"Using {version} in {self.executable}")
+
+        cmd_str = " ".join(cmd)
+
+        logger.info(f"Listening for eww reloads with '{cmd_str}'")
 
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
 
@@ -76,7 +85,7 @@ class EwwController:
     def bootstrap(self):
         logger.info(f"Using eww executable {self.executable}")
         if self.config_path:
-            logger.info(f"Using eww config dir eww executable {self.config_path}")
+            logger.info(f"Using eww config dir {self.config_path}")
         else:
             logger.info(f"Using default eww config dir")
 

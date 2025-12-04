@@ -2,6 +2,8 @@ from dataclasses import is_dataclass
 import os
 from typing import Iterable, Mapping
 
+from dasbus.error import DBusError, ErrorMapper, get_error_decorator
+
 
 def snake2camel(s, capitalize_first=True):
     camel = "".join(word.title() for word in s.split("_"))
@@ -69,3 +71,7 @@ def to_full_dict(value):
         return to_full_dict(value.to_dict())
     else:
         return value
+
+
+error_mapper = ErrorMapper()
+dbus_error = get_error_decorator(error_mapper)

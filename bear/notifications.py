@@ -1,3 +1,6 @@
+import threading
+import time
+
 from dasbus.typing import Variant
 
 
@@ -40,6 +43,30 @@ class NotificationCtl:
             [("urgency", Variant.new_byte(urgency))],
             0,
         )
+
+    def notify_and_close(
+        self,
+        title,
+        msg,
+        replace_id=0,
+        urgency=NotificationUrgency.normal,
+        icon="",
+        seconds=5,
+    ):
+
+        notification_id = self.notify(
+            title,
+            msg,
+            replace_id=replace_id,
+            urgency=urgency,
+            icon=icon,
+        )
+
+        def close():
+            time.sleep(seconds)
+            self.close_notification(notification_id)
+
+        threading.Thread(target=close).start()
 
     def close_notification(self, notification_id):
         self.notifications.CloseNotification(notification_id)

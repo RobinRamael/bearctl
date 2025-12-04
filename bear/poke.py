@@ -10,7 +10,7 @@ from dasbus.connection import MessageBus, SessionMessageBus, SystemMessageBus
 from dasbus.constants import DBUS_FLAG_NONE
 from gi.repository import GLib
 
-from bear.utils import snake2camel
+from bear.utils import error_mapper, snake2camel
 
 T = TypeVar("T", bound=Type)
 
@@ -149,14 +149,14 @@ class DBusMixin:
     @property
     def system_bus(self):
         if not self._system_bus:
-            self._system_bus = SystemMessageBus()
+            self._system_bus = SystemMessageBus(error_mapper=error_mapper)
 
         return self._system_bus
 
     @property
     def session_bus(self):
         if not self._session_bus:
-            self._session_bus = SessionMessageBus()
+            self._session_bus = SessionMessageBus(error_mapper=error_mapper)
 
         return self._session_bus
 

@@ -238,14 +238,14 @@ class WorkspaceBear(Bear):
 
 
 class WorkspaceURLOpener:
-    def __init__(self, wait_seconds=2):
+    def __init__(self, grace_period=10):
         self._current_container: Optional[I3Container] = None
         self._waiting_for_window = False
 
         self._match_to_workspace: dict[str, int] = {}
 
         self._lock = threading.Lock()
-        self.wait_seconds = wait_seconds
+        self.grace_period = grace_period
 
     def register_handler(self):
         sway.on(I3Event.WINDOW, self.handle_opened)
@@ -294,7 +294,7 @@ class WorkspaceURLOpener:
                 # the original window and then open a new one right after, so we have to
                 # wait a few seconds before not responding to title matches anymore:
                 threading.Thread(
-                    target=lambda: self.remove_from_cache_in(match, self.wait_seconds)
+                    target=lambda: self.remove_from_cache_in(match, self.grace_period)
                 ).start()
 
     def remove_from_cache_in(self, match: str, seconds: int):

@@ -1,6 +1,5 @@
 from . import battery
 from . import bluetooth
-from . import dpms
 from . import dunst
 from . import monitor
 from . import music

@@ -8,7 +8,7 @@ import os
 import pprint
 from typing import Dict, List, Type
 
-from dasbus.connection import SessionMessageBus, SystemMessageBus
+from dasbus.connection import SessionMessageBus
 from dasbus.typing import get_dbus_type
 from dasbus.xml import XMLGenerator as DBusXML
 from gi.repository import GLib
@@ -49,6 +49,9 @@ def dbus_method(*args):
 
         @wraps(func)
         def decorated(*args, **kwargs):
+            logger.debug(
+                f"DBus method {args[0].__class__.__name__}.{func.__name__} called with {args} {kwargs}"
+            )
             func(*args, **kwargs)
 
         return decorated

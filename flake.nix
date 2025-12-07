@@ -1,116 +1,61 @@
 {
-  description = "Homtying an entire os";
-  inputs = {
-    flake-utils.url = "github:numtide/flake-utils";
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
-    poetry2nix = {
-      url = "github:nix-community/poetry2nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-  };
+  description = "A basic flake using pyproject.toml project metadata";
+
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/25.11";
+  inputs.pyproject-nix.url = "github:pyproject-nix/pyproject.nix";
+  inputs.pyproject-nix.inputs.nixpkgs.follows = "nixpkgs";
+
   outputs =
-    inputs@{
-      self,
-      nixpkgs,
-      flake-utils,
-      ...
-    }:
-    flake-utils.lib.eachDefaultSystem (
-      system:
-      let
-        pkgs = nixpkgs.legacyPackages.${system};
-        python = pkgs.python311;
-        poetry2nix = inputs.poetry2nix.lib.mkPoetry2Nix {
-          inherit pkgs;
-        };
-      in
-      {
-        packages = {
-          bear = poetry2nix.mkPoetryApplication {
-            packageName = "bearctl";
-            projectDir = ./.;
-            python = python; # More explicit
-            preferWheels = true; # Try to use wheels when available
+    { nixpkgs, pyproject-nix, ... }:
+    let
+      # Loads pyproject.toml into a high-level project representation
+      # Do you notice how this is not tied to any `system` attribute or package sets?
+      # That is because `project` refers to a pure data representation.
+      project = pyproject-nix.lib.project.loadPyproject {
+        # Read & unmarshal pyproject.toml relative to this project root.
+        # projectRoot is also used to set `src` for renderers such as buildPythonPackage.
+        projectRoot = ./.;
+      };
 
-            overrides = poetry2nix.overrides.withDefaults (
-              self: super: {
-                pycairo = pkgs.python311Packages.pycairo;
+      # This example is only using x86_64-linux
+      pkgs = nixpkgs.legacyPackages.x86_64-linux;
 
-                pygobject = super.pygobject.overridePythonAttrs (old: {
-                  nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [
-                    pkgs.meson
-                    pkgs.ninja
-                    pkgs.pkg-config
-                    pkgs.gobject-introspection
-                  ];
-                  buildInputs = (old.buildInputs or [ ]) ++ [
-                    pkgs.glib
-                    pkgs.gobject-introspection
-                    pkgs.libffi
-                  ];
-                  format = "other";
+      # We are using the default nixpkgs Python3 interpreter & package set.
+      #
+      # This means that you are purposefully ignoring:
+      # - Version bounds
+      # - Dependency sources (meaning local path dependencies won't resolve to the local path)
+      #
+      # To use packages from local sources see "Overriding Python packages" in the nixpkgs manual:
+      # https://nixos.org/manual/nixpkgs/stable/#reference
+      #
+      # Or use an overlay generator such as uv2nix:
+      # https://github.com/pyproject-nix/uv2nix
+      python = pkgs.python311;
 
-				  doCheck = false;
+    in
+    {
+      # Create a development shell containing dependencies from `pyproject.toml`
+      devShells.x86_64-linux.default =
+        let
+          # Returns a function that can be passed to `python.withPackages`
+          arg = project.renderers.withPackages { inherit python; };
 
-                  configurePhase = ''
-                    runHook preConfigure
-                    cd $NIX_BUILD_TOP/$sourceRoot
-                    meson setup $NIX_BUILD_TOP/mesonbuild --prefix=$out --buildtype=plain -Dtests=false
-                    runHook postConfigure
-                  '';
+          # Returns a wrapped environment (virtualenv like) with all our packages
+          pythonEnv = python.withPackages arg;
 
-                  buildPhase = ''
-                    runHook preBuild
-                    cd $NIX_BUILD_TOP/mesonbuild
-                    ninja
-                    runHook postBuild
-                  '';
-
-                  installPhase = ''
-                    runHook preInstall
-                    cd $NIX_BUILD_TOP/mesonbuild
-                    ninja install
-                    runHook postInstall
-                  '';
-
-                  dontUsePipBuild = true;
-                  dontUsePipInstall = true;
-                });
-
-                urllib3 = super.urllib3.overridePythonAttrs (old: {
-                  buildInputs = (old.buildInputs or [ ]) ++ [ self.hatch-vcs ];
-                });
-
-                pytest-sugar = super.pytest-sugar.overridePythonAttrs (old: {
-                  buildInputs = (old.buildInputs or [ ]) ++ [ self.pytest ];
-                });
-              }
-            );
-            buildInputs = (
-              with pkgs;
-              [
-                eww
-                tlp
-              ]
-            );
-            nativeBuildInputs = [ pkgs.makeWrapper ];
-            makeWrapperArgs = [
-              "--prefix PATH : ${pkgs.tlp}/bin"
-              "--prefix GI_TYPELIB_PATH : ${pkgs.gobject-introspection}/lib/girepository-1.0"
-              "--prefix GI_TYPELIB_PATH : ${pkgs.glib.out}/lib/girepository-1.0"
-            ];
-          };
-          default = self.packages.${system}.bear;
-        };
-        devShells.default = pkgs.mkShell {
-          inputsFrom = [ self.packages.${system}.bear ];
-          packages = [ pkgs.poetry ];
+        in
+        # Create a devShell like normal.
+        pkgs.mkShell {
+          packages = [ pythonEnv ];
           shellHook = ''
             export PYTHONBREAKPOINT="ipdb.set_trace"
             export BEARCTL_EXECUTABLE=/home/robin/devel/bearctl/result/bin/bearctl
             export DEBUG=1
             export EWW_CONFIG=/home/robin/.config/home-manager/eww
             export EWW_EXECUTABLE=/home/robin/.nix-profile/bin/eww
+
+
             run_eww() {
               $EWW_EXECUTABLE -c $EWW_CONFIG kill
               $EWW_EXECUTABLE -c $EWW_CONFIG daemon
@@ -118,8 +63,27 @@
               $EWW_EXECUTABLE -c $EWW_CONFIG open bottom-bar
               $EWW_EXECUTABLE -c $EWW_CONFIG logs
             }
+
+            # Fix terminal echo issues in nix-shell with zsh
+            export TERM=''${TERM:-xterm-256color}
+
+            if [ -n "$ZSH_VERSION" ]; then
+              # Reinitialize zsh completion
+              autoload -U compinit && compinit
+              # Reset prompt
+              autoload -U promptinit && promptinit
+            fi
           '';
         };
-      }
-    );
+
+      # Build our package using `buildPythonPackage
+      packages.x86_64-linux.default =
+        let
+          # Returns an attribute set that can be passed to `buildPythonPackage`.
+          attrs = project.renderers.buildPythonPackage { inherit python; };
+        in
+        # Pass attributes to buildPythonPackage.
+        # Here is a good spot to add on any missing or custom attributes.
+        python.pkgs.buildPythonPackage (attrs // { env.CUSTOM_ENVVAR = "hello"; });
+    };
 }

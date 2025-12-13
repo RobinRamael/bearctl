@@ -7,13 +7,13 @@ import time
 from typing import Hashable, TypeVar
 
 from dasbus.error import DBusError
-from dataclasses_json import dataclass_json
 
 from bear.bear import Bear, DebugView, bears, dbus_method
 from bear.eww import EwwJSONView
 from bear.notifications import NotificationCtl, NotificationUrgency
 from bear.poke import DBusObjectsProvider, MultiProxyPoke, Poke, ProxyPoke
 from bear.utils import dbus_error
+from dataclasses_json import dataclass_json
 
 BLUEZ_DEVICE_INTERFACE = "org.bluez.Device1"
 BLUEZ_SERVICE_NAME = "org.bluez"
@@ -265,6 +265,7 @@ class BluetoothBear(Bear):
 
     def _ensure_bluetooth_enabled(self):
         logger.debug(f"thread in ensure_bluetooth_enabled is {threading.get_ident()}")
+
         if not is_bluetooth_enabled():
             logger.info("Bluetooth was not enabled, enabling")
             enable_bluetooth()
@@ -274,6 +275,10 @@ class BluetoothBear(Bear):
             logger.info("Bluetooth successfully enabled")
 
         else:
+            if not self.adapter.poke_map:
+                raise NoController(
+                    "Bluetooth looks enabled but no controller was found."
+                )
             logger.debug("Bluetooth was enabled, not doing anything.")
 
 
@@ -318,6 +323,12 @@ class NoSuchDevice(Exception):
 
 class AdapterNotResponsive(Exception):
     message = "The bluetooth adapter seems unresponsive"
+
+
+class NoController(Exception):
+    def __init__(self, message):
+        super().__init__()
+        self.message = message
 
 
 # generated with claude.ai

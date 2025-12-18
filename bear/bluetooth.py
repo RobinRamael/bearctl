@@ -264,22 +264,65 @@ class BluetoothBear(Bear):
         threading.Thread(target=self._ensure_bluetooth_enabled).start()
 
     def _ensure_bluetooth_enabled(self):
-        logger.debug(f"thread in ensure_bluetooth_enabled is {threading.get_ident()}")
 
         if not is_bluetooth_enabled():
             logger.info("Bluetooth was not enabled, enabling")
             enable_bluetooth()
 
-            self.adapter.wait_for_adapter(timeout=10)
+            self.adapter.wait_for_adapter(timeout=5)
 
             logger.info("Bluetooth successfully enabled")
 
-        else:
-            if not self.adapter.poke_map:
+        elif not self.adapter.poke_map:
+            logger.warning(
+                "Bluetooth looks enabled but no controller was found. "
+                "Attempting percussive maintenance..."
+            )
+
+            self.percussive_maintenance()
+
+            logger.info("Percussive maintenance done. Did it work?")
+
+            try:
+                self.adapter.wait_for_adapter(timeout=5)
+            except AdapterNotResponsive:
                 raise NoController(
-                    "Bluetooth looks enabled but no controller was found."
+                    f"Bluetooth looks enabled but no controller was found and "
+                    "modprobe percussive maintenance didn't fix that."
                 )
+
+            logger.info(
+                "Bluetooth successfully enabled after applying "
+                "percussive maintenance! Neato."
+            )
+
+        else:
             logger.debug("Bluetooth was enabled, not doing anything.")
+
+    def percussive_maintenance(self):
+        self.notifications.notify_and_close(
+            "Percussive maintenance being tried!", "Go check the logs, bear!"
+        )
+        rmmod_result = subprocess.run(
+            ["sudo", "rmmod", "btusb"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        if rmmod_result.returncode is not 0:
+            raise NoController(
+                f"Bluetooth looks enabled but no controller was found and "
+                "rmmod failed with stderr '{rmmod_result.stderr}' "
+                "and stdout '{rmmod_result.stdout}'"
+            )
+
+        modprobe_result = subprocess.run(
+            ["sudo", "modprobe", "btusb"], stdout=subprocess.PIPE
+        )
+
+        if modprobe_result.returncode is not 0:
+            raise NoController(
+                f"Bluetooth looks enabled but no controller was found and "
+                "rmmod failed with stderr '{modprobe_result.stderr}' "
+                "and stdout '{modprobe_result.stdout}'"
+            )
 
 
 def parse_bluetooth_cmd(output) -> bool:

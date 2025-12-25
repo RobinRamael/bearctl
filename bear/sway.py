@@ -3,32 +3,31 @@ import threading
 import time
 from typing import Any, Callable, List, Optional
 
-from i3ipc import (
-    Con as I3Container,
-    Connection as I3Connection,
-    Event as I3Event,
-    WindowEvent as I3WindowEvent,
-    WorkspaceEvent,
-)
-
 from bear.bear import Bear, DebugView, bears, dbus_method
 from bear.eww import EwwJSONView, EwwPrefixView
 from bear.poke import Poke
+from i3ipc import (
+    Con as SwayContainer,
+    Connection as SwayConnection,
+    Event as SwayEvent,
+    WindowEvent as SwayWindowEvent,
+    WorkspaceEvent,
+)
 
 logger = logging.getLogger(__name__)
 
 
-class _I3:
-    connection: I3Connection
+class _Sway:
+    connection: SwayConnection
 
     def __init__(self):
         self.connection = None
         self.handlers = set()
         self.running = False
 
-    def get_connection(self) -> I3Connection:
+    def get_connection(self) -> SwayConnection:
         if not self.connection:
-            self.connection = I3Connection()
+            self.connection = SwayConnection()
         return self.connection
 
     def on(self, event_type, handler):
@@ -51,11 +50,11 @@ class _I3:
 
     def ensure_listening(self):
         if not self.handlers:
-            logger.info("Not starting i3 loop because no handlers were set")
+            logger.info("Not starting i3/sway ipc loop because no handlers were set")
             return
 
         if self.running:
-            logger.debug("I3 loop already running")
+            logger.debug("I3/sway ipc loop already running")
             return
 
         def run_loop():
@@ -66,18 +65,17 @@ class _I3:
         self.running = True
 
 
-i3 = _I3()
-sway = i3
+sway = _Sway()
 
 
-class I3Poke(Poke):
-    event_types: List[I3Event] = []
+class SwayPoke(Poke):
+    event_types: List[SwayEvent] = []
 
     def __init__(
         self,
         *args,
         event_types=None,
-        data_from_event: Optional[Callable[[I3Event], Any]] = None,
+        data_from_event: Optional[Callable[[SwayEvent], Any]] = None,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
@@ -89,25 +87,25 @@ class I3Poke(Poke):
 
     def register(self):
         super().register()
-        logger.debug("Registered i3 poke")
+        logger.debug("Registered sway poke")
 
         for event_type in self.event_types:
-            i3.on(event_type, self.listener)
+            sway.on(event_type, self.listener)
 
     def post_init(self):
-        i3.ensure_listening()
+        sway.ensure_listening()
 
     def data_from_event(self, event):
         if self.data_transform:
             return self.data_transform(event)
         else:
             raise TypeError(
-                "No way to get data from i3 event, override data_from_event "
+                "No way to get data from sway event, override data_from_event "
                 "or pass the kwarg into the constructor"
             )
 
     def listener(self, _, event):
-        logger.debug("i3 listener triggered")
+        logger.debug("sway listener triggered")
         new_data = self.data_from_event(event)
 
         if self.current_data != new_data:
@@ -134,17 +132,18 @@ def get_title(ev):
 class FocusedWindowBear(Bear):
     name = "focused"
 
-    i3_focus = I3Poke(
-        event_types=[I3Event.WINDOW, I3Event.WORKSPACE_INIT], data_from_event=get_title
+    sway_focus = SwayPoke(
+        event_types=[SwayEvent.WINDOW, SwayEvent.WORKSPACE_INIT],
+        data_from_event=get_title,
     )
 
     view = EwwPrefixView(var_names=["title"])
 
 
-class I3ActiveWorkspacesPoke(I3Poke):
+class SwayActiveWorkspacesPoke(SwayPoke):
     event_types = [
-        I3Event.WORKSPACE_INIT,
-        I3Event.WORKSPACE_EMPTY,
+        SwayEvent.WORKSPACE_INIT,
+        SwayEvent.WORKSPACE_EMPTY,
     ]
 
     def get_initial_data(self):
@@ -167,8 +166,8 @@ class I3ActiveWorkspacesPoke(I3Poke):
         self.poke()
 
 
-class I3FocusedWorkspacePoke(I3Poke):
-    event_types = [I3Event.WORKSPACE_FOCUS]
+class SwayFocusedWorkspacePoke(SwayPoke):
+    event_types = [SwayEvent.WORKSPACE_FOCUS]
 
     def get_initial_data(self):
         workspaces = sway.get_connection().get_workspaces()
@@ -184,12 +183,14 @@ class I3FocusedWorkspacePoke(I3Poke):
         return {"focused": event.ipc_data["current"]["num"]}
 
 
+
+
 def get_urgent_workspace(ev):
     return {"urgent": ev.ipc_data["current"]["num"]}
 
 
-class I3UrgentWorkspacePoke(I3Poke):
-    event_types = [I3Event.WORKSPACE_URGENT, I3Event.WORKSPACE_FOCUS]
+class SwayUrgentWorkspacePoke(SwayPoke):
+    event_types = [SwayEvent.WORKSPACE_URGENT, SwayEvent.WORKSPACE_FOCUS]
     initial = {"urgent": None, "focused": None}
 
     def listener(self, _, event):
@@ -213,12 +214,12 @@ class I3UrgentWorkspacePoke(I3Poke):
 @bears.recruit
 class WorkspaceBear(Bear):
     name = "workspace"
-    # current_mode = I3Poke(event_types=[I3Event.MODE])
+    # current_mode = SwayPoke(event_types=[SwayEvent.MODE])
 
-    focused = I3FocusedWorkspacePoke()
-    urgent = I3UrgentWorkspacePoke()
+    focused = SwayFocusedWorkspacePoke()
+    urgent = SwayUrgentWorkspacePoke()
 
-    workspaces = I3ActiveWorkspacesPoke()
+    workspaces = SwayActiveWorkspacesPoke()
 
     view = EwwJSONView(var_name="sway_workspaces", from_key="workspaces")
 
@@ -239,7 +240,7 @@ class WorkspaceBear(Bear):
 
 class WorkspaceURLOpener:
     def __init__(self, grace_period=10):
-        self._current_container: Optional[I3Container] = None
+        self._current_container: Optional[SwayContainer] = None
         self._waiting_for_window = False
 
         self._match_to_workspace: dict[str, int] = {}
@@ -248,13 +249,13 @@ class WorkspaceURLOpener:
         self.grace_period = grace_period
 
     def register_handler(self):
-        sway.on(I3Event.WINDOW, self.handle_opened)
+        sway.on(SwayEvent.WINDOW, self.handle_opened)
         sway.ensure_listening()
 
     def unregister_handler(self):
         sway.ensure_off(self.handle_opened)
 
-    def handle_opened(self, _, event: I3WindowEvent):
+    def handle_opened(self, _, event: SwayWindowEvent):
 
         if not event.change == "title":
             return

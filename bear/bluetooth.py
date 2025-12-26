@@ -300,9 +300,6 @@ class BluetoothBear(Bear):
             logger.debug("Bluetooth was enabled, not doing anything.")
 
     def percussive_maintenance(self):
-        self.notifications.notify_and_close(
-            "Percussive maintenance being tried!", "Go check the logs, bear!"
-        )
         rmmod_result = subprocess.run(
             ["sudo", "rmmod", "btusb"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )

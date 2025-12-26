@@ -253,7 +253,8 @@ class BluetoothBear(Bear):
             logger.warning("Bluez is not ready. Did it work anyway?")
 
         except Exception as e:
-            logger.critical("Unknown error when (dis)connecting.", exc_info=e)
+            msg = getattr(e, "message", str(e))
+            logger.critical(f"Unknown error when (dis)connecting: {msg}", exc_info=e)
             self.show_error(e)
 
         finally:
@@ -306,8 +307,8 @@ class BluetoothBear(Bear):
         if rmmod_result.returncode is not 0:
             raise NoController(
                 f"Bluetooth looks enabled but no controller was found and "
-                "rmmod failed with stderr '{rmmod_result.stderr}' "
-                "and stdout '{rmmod_result.stdout}'"
+                f"rmmod failed with stderr '{rmmod_result.stderr}' "
+                f"and stdout '{rmmod_result.stdout}'"
             )
 
         modprobe_result = subprocess.run(
@@ -317,8 +318,8 @@ class BluetoothBear(Bear):
         if modprobe_result.returncode is not 0:
             raise NoController(
                 f"Bluetooth looks enabled but no controller was found and "
-                "rmmod failed with stderr '{modprobe_result.stderr}' "
-                "and stdout '{modprobe_result.stdout}'"
+                f"rmmod failed with stderr '{modprobe_result.stderr}' "
+                f"and stdout '{modprobe_result.stdout}'"
             )
 
 

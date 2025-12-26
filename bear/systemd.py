@@ -9,6 +9,7 @@ from gi.repository import GLib
 from bear.bear import ActionableBear, Bear, bears, dbus_method
 from bear.eww import EwwPrefixView
 from bear.poke import ProxyPoke
+from bear.sway import FocusedWindowBear, SwayFocusedWorkspacePoke
 from bear.utils import snake2camel
 
 SYSTEMD_BUS_NAME = "org.freedesktop.systemd1"
@@ -101,23 +102,33 @@ class SystemdServiceBear(Bear):
     service: ServiceStatePoke
 
     def get_extra_context(self):
-        status = self.service.data.active_state
-        sub_status = self.service.data.sub_state
+        return {
+            "state": (
+                ServiceStates.ENABLED if self.is_enabled() else ServiceStates.DISABLED
+            )
+        }
 
-        if status == "active" and sub_status == "running":
-            state = ServiceStates.ENABLED
-        else:
-            state = ServiceStates.DISABLED
-
-        return {"state": state}
+    def is_enabled(self):
+        return (
+            self.service.data.active_state == "active"
+            and self.service.data.sub_state == "running"
+        )
 
     @dbus_method()
     def start(self):
+        if self.is_enabled():
+            logger.debug("Service was already started")
+            return
+
         self.service.start()
         logger.info(f"Started {self.name} service")
 
     @dbus_method()
     def stop(self):
+        if not self.is_enabled():
+            logger.debug("Service was already stopped")
+            return
+
         logger.debug(f"Stopping {self.name} service")
         self.service.stop()
         logger.info(f"Stopped {self.name} service")
@@ -213,12 +224,36 @@ class DropboxBear(SystemdServiceBear):
     service = ServiceStatePoke("dropbox.service")
     view = EwwPrefixView(var_names=["state"])
 
-    def update(self):
-        return super().update()
-
 
 @bears.recruit
 class GammastepBear(PauseableSystemdServiceBear):
     name = "gammastep"
     service = ServiceStatePoke("gammastep.service")
     view = EwwPrefixView(var_names=["state"])
+
+    focused_workspace = SwayFocusedWorkspacePoke()
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.disabled_workspaces: set[int] = set()
+
+    @dbus_method()
+    def toggle_for_current_workspace(self):
+        focused: int = self.focused_workspace.data["focused"]
+        if focused in self.disabled_workspaces:
+            self.disabled_workspaces.remove(focused)
+            self.start()
+        else:
+            self.disabled_workspaces.add(focused)
+            self.stop()
+
+    def post_update(self):
+        super().post_update()
+
+        if self.focused_workspace.data["focused"] in self.disabled_workspaces:
+            self.stop()
+        else:
+            self.start()
+
+    def on_right_click(self):
+        self.toggle_for_current_workspace()

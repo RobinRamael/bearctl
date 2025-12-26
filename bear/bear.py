@@ -203,12 +203,17 @@ class Bear(metaclass=BearMeta):
         for view in self.views:
             view.render(context)
 
+        self.post_update()
+
     def poke(self):
         raise NotImplementedError
 
     def post_init(self):
         for poke in self.pokes:
             poke.post_init()
+
+    def post_update(self):
+        pass
 
     def __str__(self):
         return f"{self.__class__.__name__}(name={self.name})"

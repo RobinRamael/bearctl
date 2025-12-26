@@ -301,7 +301,7 @@ class NetworkBear(Bear):
             strength = self.device.data.get("strength", 0)
             ctx["strength_display"] = f"{strength}%" if network_connected else ""
             if network_connected:
-                icon_idx = int(strength // (100 / 4))
+                icon_idx = int(strength // (100 / 4)) - 1
                 ctx["icon_name"] = f"WIFI_STRENGTH_ICON_{icon_idx}"
             else:
                 ctx["icon_name"] = "WIFI_OFF_ICON"

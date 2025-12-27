@@ -304,11 +304,15 @@ class BluetoothBear(Bear):
         rmmod_result = subprocess.run(
             ["sudo", "rmmod", "btusb"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
-        if rmmod_result.returncode is not 0:
+        if (
+            rmmod_result.returncode is not 0
+            and "ERROR: Module btusb is not currently loaded"
+            not in rmmod_result.stderr.decode()
+        ):
             raise NoController(
                 f"Bluetooth looks enabled but no controller was found and "
-                f"rmmod failed with stderr '{rmmod_result.stderr}' "
-                f"and stdout '{rmmod_result.stdout}'"
+                f"rmmod failed with stderr '{rmmod_result.stderr.decode()}' "
+                f"and stdout '{rmmod_result.stdout.decode()}'"
             )
 
         modprobe_result = subprocess.run(
@@ -318,8 +322,8 @@ class BluetoothBear(Bear):
         if modprobe_result.returncode is not 0:
             raise NoController(
                 f"Bluetooth looks enabled but no controller was found and "
-                f"rmmod failed with stderr '{modprobe_result.stderr}' "
-                f"and stdout '{modprobe_result.stdout}'"
+                f"rmmod failed with stderr '{modprobe_result.stderr.decode()}' "
+                f"and stdout '{modprobe_result.stdout.decode()}'"
             )
 
 

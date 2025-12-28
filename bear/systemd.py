@@ -23,6 +23,7 @@ class ServiceStates:
     DISABLED = "disabled"
     ENABLED = "enabled"
     PAUSED = "paused"
+    ISOLATED = "isolated"
 
 
 class SystemdManager:
@@ -247,12 +248,27 @@ class GammastepBear(PauseableSystemdServiceBear):
             self.disabled_workspaces.add(focused)
             self.stop()
 
+    def get_extra_context(self):
+        ctx = super().get_extra_context()
+
+        if self.focused_workspace.data["focused"] in self.disabled_workspaces:
+            ctx["state"] = ServiceStates.ISOLATED
+
+        return ctx
+
+    def toggle_pause(self, seconds: int):
+        # when a general pause is enabled, clear all workspace specific
+        # pauses
+        self.disabled_workspaces.clear()
+
+        return super().toggle_pause(seconds)
+
     def post_update(self):
         super().post_update()
 
         if self.focused_workspace.data["focused"] in self.disabled_workspaces:
             self.stop()
-        else:
+        elif not self.paused:
             self.start()
 
     def on_right_click(self):

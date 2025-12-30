@@ -1,11 +1,10 @@
 import logging
 
-import click
-from gi.repository import GLib
-
 from bear.bear import bears
 from bear.eww import EwwController, eww
 from bear.utils import in_debug_mode
+import click
+from gi.repository import GLib
 
 logger = logging.getLogger()
 
@@ -19,7 +18,8 @@ logger = logging.getLogger()
     ),
     default="info",
 )
-def cli(color, verbosity):
+@click.option("--debug", type=str, multiple=True)
+def cli(color, verbosity, debug):
     logger = logging.getLogger()
     handler = logging.StreamHandler()
 
@@ -39,6 +39,9 @@ def cli(color, verbosity):
     logger = logging.getLogger()
     logger.handlers = [handler]
     logger.setLevel(verbosity.upper())
+
+    for module in debug:
+        logging.getLogger(f"bear.{module}").setLevel(logging.DEBUG)
 
 
 @cli.command()

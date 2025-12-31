@@ -246,14 +246,12 @@ class EwwJSONView(BearView):
         self.var.set(json.dumps(to_full_dict(value)))
 
 
-class EwwWindowView(EwwJSONView):
+class EwwWidgetView(EwwJSONView):
 
-    def __init__(self, var_name, window_name, from_key=None, start_opened=False):
+    def __init__(self, var_name, widget_name, from_key=None, start_opened=False):
         super().__init__(var_name, from_key)
 
-        self.window_name = window_name
-
-        self.visible = self.eww.var(f"{window_name}-window-visible")
+        self.visible = self.eww.var(f"{widget_name}-widget-visible")
         self.visible.set(start_opened)
 
     def open(self):

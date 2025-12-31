@@ -9,7 +9,7 @@ from typing import Tuple
 import psutil
 
 from bear.bear import Bear, bears, dbus_method
-from bear.eww import EwwJSONView, EwwPrefixView, EwwWindowView
+from bear.eww import EwwPrefixView, EwwWidgetView
 from bear.poke import PausablePollingPoke, PollingPoke
 from bear.utils import BearLevel
 from dataclasses_json import dataclass_json
@@ -96,6 +96,11 @@ WRAPPED_RE = re.compile("\.(.*)-wrapped")
 
 
 class ProcessesPoke(PausablePollingPoke):
+    def __init__(self, *args, sort_by="cpu", **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.sort_by = sort_by
+
     def poll(self):
         # Get all processes sorted by CPU usage
         proc_aggrs = {}
@@ -131,18 +136,14 @@ class ProcessesPoke(PausablePollingPoke):
                 pass
 
         # Sort by CPU usage (descending)
-        return sorted(proc_aggrs.values(), key=lambda p: p.cpu, reverse=True)[:10]
+        return sorted(
+            proc_aggrs.values(), key=lambda p: getattr(p, self.sort_by), reverse=True
+        )[:10]
 
 
-@bears.recruit
-class ProcessesBear(Bear):
-    name = "processes"
-
-    processes = ProcessesPoke(interval=5, start_paused=True)
-
-    view = EwwWindowView(
-        var_name="processes", from_key="processes", window_name="processes"
-    )
+class TopBear(Bear):
+    processes: ProcessesPoke
+    view: EwwWidgetView
 
     @dbus_method()
     def show_widget(self):
@@ -156,3 +157,25 @@ class ProcessesBear(Bear):
         logger.info(f"{self}.hide_widget")
         self.processes.pause()
         self.view.close()
+
+
+@bears.recruit
+class TopCPUBear(TopBear):
+    name = "top_cpu"
+
+    processes = ProcessesPoke(interval=5, start_paused=True, sort_by="cpu")
+
+    view = EwwWidgetView(
+        var_name="processes", from_key="processes", widget_name="top-cpu"
+    )
+
+
+@bears.recruit
+class TopMemoryBear(TopBear):
+    name = "top_memory"
+
+    processes = ProcessesPoke(interval=5, start_paused=True, sort_by="mem")
+
+    view = EwwWidgetView(
+        var_name="processes", from_key="processes", widget_name="top-memory"
+    )

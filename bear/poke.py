@@ -2,15 +2,16 @@ from abc import ABC, abstractmethod
 from functools import partial
 import logging
 import re
+import threading
 import time
 from typing import Any, Callable, Dict, Generic, Hashable, List, Optional, Type, TypeVar
 
+from bear.eww import EwwLogsListener
+from bear.utils import error_mapper, snake2camel
 from dasbus.client.proxy import get_object_handler, get_object_path
 from dasbus.connection import MessageBus, SessionMessageBus, SystemMessageBus
 from dasbus.constants import DBUS_FLAG_NONE
 from gi.repository import GLib
-
-from bear.utils import error_mapper, snake2camel
 
 T = TypeVar("T", bound=Type)
 
@@ -347,7 +348,9 @@ class PollingPoke(Poke, Generic[P]):
 
     def register(self):
         super().register()
+        self.start_polling()
 
+    def start_polling(self):
         GLib.timeout_add_seconds(
             priority=GLib.PRIORITY_DEFAULT,
             function=self.do_poll,
@@ -396,6 +399,35 @@ class PollingPoke(Poke, Generic[P]):
             return self.poller()
         else:
             raise NotImplementedError
+
+
+class PausablePollingPoke(PollingPoke):
+
+    def __init__(self, *args, start_paused=False, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.start_event = threading.Event()
+
+        if not start_paused:
+            self.start_event.set()
+
+    def unpause(self):
+        logger.debug("Unpausing {self}")
+        self.start_event.set()
+        self.do_poll()
+        self.start_polling()
+
+    def pause(self):
+        logger.debug("Pausing {self}")
+        self.start_event.clear()
+
+    def do_poll(self):
+        if self.start_event.is_set():
+            logger.info("Start event set, doing poll")
+            super().do_poll()
+        else:
+            logger.info("Start event not set, cancelling next poll")
+            return False
 
 
 class MultiPoke(Poke):

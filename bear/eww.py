@@ -106,10 +106,18 @@ class EwwController:
             command = executable_location
 
         self.executable_var = self.var("BEARCTL")
+        logger.info("fSetting eww variable BEARCTL={command}")
         self.executable_var.set(command)
 
         self.debug_mode_var = self.var("DEBUG")
-        self.debug_mode_var.set(str(in_debug_mode()).lower())
+        debug_enabled = str(in_debug_mode()).lower()
+        logger.info(f"Setting eww variable DEBUG={debug_enabled}")
+        self.debug_mode_var.set(debug_enabled)
+
+        self.eww_command = self.var("EWW_CMD")
+        eww_cmd = f"{self.executable} -c {self.config_path}"
+        logger.info(f"Setting eww variable EWW_CMD={eww_cmd}")
+        self.eww_command.set(eww_cmd)
 
         logger.info("Bootstrapped %s into eww variable", executable_location)
 
@@ -236,3 +244,21 @@ class EwwJSONView(BearView):
             value = context
 
         self.var.set(json.dumps(to_full_dict(value)))
+
+
+class EwwWindowView(EwwJSONView):
+
+    def __init__(self, var_name, window_name, from_key=None, start_opened=False):
+        super().__init__(var_name, from_key)
+
+        self.window_name = window_name
+
+        self.visible = self.eww.var(f"{window_name}-window-visible")
+        self.visible.set(start_opened)
+
+    def open(self):
+        self.visible.set(True)
+
+    def close(self):
+        pass
+        self.visible.set(False)

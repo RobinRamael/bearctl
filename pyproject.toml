@@ -16,7 +16,8 @@ dependencies = [
     "humanize==4.12.3",
 
     "ipdb",
-    "ipython"
+    "ipython",
+    "hupper"
 ]
 
 [project.scripts]

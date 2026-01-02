@@ -1,10 +1,13 @@
 import logging
 
+import click
+from gi.repository import GLib
+import hupper
+from hupper.polling import PollingFileMonitor
+
 from bear.bear import bears
 from bear.eww import EwwController, eww
 from bear.utils import in_debug_mode
-import click
-from gi.repository import GLib
 
 logger = logging.getLogger()
 
@@ -20,6 +23,7 @@ logger = logging.getLogger()
 )
 @click.option("--debug", type=str, multiple=True)
 def cli(color, verbosity, debug):
+
     logger = logging.getLogger()
     handler = logging.StreamHandler()
 
@@ -48,7 +52,11 @@ def cli(color, verbosity, debug):
 @click.argument("bear_names", nargs=-1)
 @click.option("--eww-no-listen", is_flag=True, default=False)
 @click.option("--no-eww", is_flag=True, default=False)
-def service(bear_names, eww_no_listen=False, no_eww=False):
+@click.option("--reload", is_flag=True)
+def service(bear_names, eww_no_listen=False, no_eww=False, reload=False):
+    if reload and not hupper.is_active():
+        hupper.start_reloader("bear.main.cli", monitor_factory=PollingFileMonitor)
+
     loop = GLib.MainLoop()
 
     if not bear_names:
@@ -95,9 +103,5 @@ def client(name, command, command_args, silent=False):
     logger.info("Ta-ta mr bear!")
 
 
-def main():
-    cli()
-
-
 if __name__ == "__main__":
-    main()
+    cli()

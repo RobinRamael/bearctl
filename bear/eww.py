@@ -106,7 +106,7 @@ class EwwController:
             command = executable_location
 
         self.executable_var = self.var("BEARCTL")
-        logger.info("fSetting eww variable BEARCTL={command}")
+        logger.info(f"Setting eww variable BEARCTL={command}")
         self.executable_var.set(command)
 
         self.debug_mode_var = self.var("DEBUG")

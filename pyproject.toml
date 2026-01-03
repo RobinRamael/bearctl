@@ -14,10 +14,17 @@ dependencies = [
     "colorlog==6.10.1",
     "dasbus==1.7",
     "humanize==4.12.3",
+    "transmission-rpc==7.0.11"
+]
 
+[project.optional-dependencies]
+dev = [
     "ipdb",
     "ipython",
-    "hupper"
+    "hupper",
+    "pytest",
+    "pytest-mock",
+    "lxml"
 ]
 
 [project.scripts]

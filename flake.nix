@@ -39,7 +39,10 @@
       devShells.x86_64-linux.default =
         let
           # Returns a function that can be passed to `python.withPackages`
-          arg = project.renderers.withPackages { inherit python; };
+          arg = project.renderers.withPackages {
+            inherit python;
+            extras = [ "dev" ];
+          };
 
           # Returns a wrapped environment (virtualenv like) with all our packages
           pythonEnv = python.withPackages arg;
@@ -54,6 +57,7 @@
             export DEBUG=1
             export EWW_CONFIG=/home/robin/.config/home-manager/eww
             export EWW_EXECUTABLE=/home/robin/.nix-profile/bin/eww
+            export PYTHONPATH="$PWD:$PYTHONPATH"
 
             # Fix terminal echo issues in nix-shell with zsh
             export TERM=''${TERM:-xterm-256color}

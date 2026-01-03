@@ -5,6 +5,7 @@ from dataclasses_json import dataclass_json
 
 from bear.utils import BearLevel
 from bear.utils import to_full_dict
+from bear.utils import get_level
 
 
 def test_level_for_idle():
@@ -91,3 +92,19 @@ def test_complex():
     assert to_full_dict(data), [
         {"mapping": {"frob": "baz"}, "value": 42, "child": {"value": 4}}
     ]
+
+
+def test_levels_simple():
+
+    # [0 .. 25 .. 50 .. 75 .. 100]
+    #  0     |  1  |  2  |   3
+
+    assert get_level(0, 4) == 0
+    assert get_level(15, 4) == 0
+    assert get_level(25, 4) == 1
+    assert get_level(26, 4) == 1
+    assert get_level(50, 4) == 2
+    assert get_level(74, 4) == 2
+    assert get_level(75, 4) == 3
+    assert get_level(99, 4) == 3
+    assert get_level(100, 4) == 3

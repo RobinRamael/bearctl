@@ -6,6 +6,7 @@ from dasbus.connection import SystemMessageBus
 from bear.bear import Bear, DebugView, bears
 from bear.eww import EwwPrefixView
 from bear.poke import DBusMixin, DBusObjectsProvider, ObjectManager, Poke, ProxyPoke
+from bear.utils import get_level
 
 
 logger = logging.getLogger(__name__)
@@ -281,7 +282,7 @@ class NetworkBear(Bear):
     device = DevicePoke(ip_interface="wlp4s0")
 
     eww = EwwPrefixView(
-        prefix="network", var_names=["id", "strength_display", "status", "icon_name"]
+        prefix="network", var_names=["icon_name", "id", "status", "strength_display"]
     )
     debug = DebugView()
 
@@ -301,7 +302,7 @@ class NetworkBear(Bear):
             strength = self.device.data.get("strength", 0)
             ctx["strength_display"] = f"{strength}%" if network_connected else ""
             if network_connected:
-                icon_idx = int(strength // (100 / 4)) - 1
+                icon_idx = get_level(strength, 4)
                 ctx["icon_name"] = f"WIFI_STRENGTH_ICON_{icon_idx}"
             else:
                 ctx["icon_name"] = "WIFI_OFF_ICON"

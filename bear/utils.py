@@ -75,3 +75,9 @@ def to_full_dict(value):
 
 error_mapper = ErrorMapper()
 dbus_error = get_error_decorator(error_mapper)
+
+
+def get_level(strength, n_partitions):
+    if strength == 100:
+        return n_partitions - 1
+    return int(strength // (100 / n_partitions))

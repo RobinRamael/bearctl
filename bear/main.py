@@ -53,7 +53,7 @@ def cli(color, verbosity, debug):
 @click.option("--no-eww", is_flag=True, default=False)
 @click.option("--reload", is_flag=True)
 def service(bear_names, eww_no_listen=False, no_eww=False, reload=False):
-    if reload
+    if reload:
         import hupper
         from hupper.polling import PollingFileMonitor
 

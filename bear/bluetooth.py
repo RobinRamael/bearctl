@@ -7,13 +7,13 @@ import time
 from typing import Hashable, TypeVar
 
 from dasbus.error import DBusError
+from dataclasses_json import dataclass_json
 
 from bear.bear import Bear, DebugView, bears, dbus_method
 from bear.eww import EwwJSONView
 from bear.notifications import NotificationCtl, NotificationUrgency
 from bear.poke import DBusObjectsProvider, MultiProxyPoke, Poke, ProxyPoke
 from bear.utils import dbus_error
-from dataclasses_json import dataclass_json
 
 BLUEZ_DEVICE_INTERFACE = "org.bluez.Device1"
 BLUEZ_SERVICE_NAME = "org.bluez"
@@ -305,7 +305,7 @@ class BluetoothBear(Bear):
             ["sudo", "rmmod", "btusb"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
         if (
-            rmmod_result.returncode is not 0
+            rmmod_result.returncode != 0
             and "ERROR: Module btusb is not currently loaded"
             not in rmmod_result.stderr.decode()
         ):
@@ -319,7 +319,7 @@ class BluetoothBear(Bear):
             ["sudo", "modprobe", "btusb"], stdout=subprocess.PIPE
         )
 
-        if modprobe_result.returncode is not 0:
+        if modprobe_result.returncode != 0:
             raise NoController(
                 f"Bluetooth looks enabled but no controller was found and "
                 f"rmmod failed with stderr '{modprobe_result.stderr.decode()}' "

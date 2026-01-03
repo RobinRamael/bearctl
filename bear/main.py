@@ -3,8 +3,6 @@ from re import L
 
 import click
 from gi.repository import GLib
-import hupper
-from hupper.polling import PollingFileMonitor
 
 from bear.bear import bears
 from bear.eww import EwwController, eww
@@ -55,8 +53,12 @@ def cli(color, verbosity, debug):
 @click.option("--no-eww", is_flag=True, default=False)
 @click.option("--reload", is_flag=True)
 def service(bear_names, eww_no_listen=False, no_eww=False, reload=False):
-    if reload and not hupper.is_active():
-        hupper.start_reloader("bear.main.cli", monitor_factory=PollingFileMonitor)
+    if reload
+        import hupper
+        from hupper.polling import PollingFileMonitor
+
+        if hupper.is_active():
+            hupper.start_reloader("bear.main.cli", monitor_factory=PollingFileMonitor)
 
     loop = GLib.MainLoop()
 

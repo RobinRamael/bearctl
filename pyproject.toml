@@ -19,9 +19,9 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "hupper",
     "ipdb",
     "ipython",
-    "hupper",
     "pytest",
     "pytest-mock",
     "lxml"

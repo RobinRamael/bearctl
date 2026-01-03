@@ -1,4 +1,5 @@
 import logging
+from re import L
 
 import click
 from gi.repository import GLib
@@ -101,6 +102,10 @@ def client(name, command, command_args, silent=False):
     client.call(command, command_args)
 
     logger.info("Ta-ta mr bear!")
+
+
+def main():  # used by nix stuff somehow?
+    cli()
 
 
 if __name__ == "__main__":

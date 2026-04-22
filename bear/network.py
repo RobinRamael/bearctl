@@ -19,6 +19,7 @@ NETWORK_MANAGER_OBJECT_MANAGER_PATH = "/org/freedesktop"
 WIRELESS_INTERFACE = "org.freedesktop.NetworkManager.Device.Wireless"
 ACCESS_POINT_INTERFACE = "org.freedesktop.NetworkManager.AccessPoint"
 
+WIFI_INTERFACE = "org.freedesktop.NetworkManager.Device.Wireless"
 
 nm_obj_manager = ObjectManager(
     SystemMessageBus(),
@@ -156,15 +157,26 @@ class ActiveConnectionsPoke(Poke, DBusMixin):
         return {"id": self.connection_poke.data.get("id", None)}
 
 
+def get_wireless_device():
+    for obj_path, _ in nm_obj_manager.get_objects_of_interface(WIFI_INTERFACE):
+        return obj_path
+
+
 class DevicePoke(ProxyPoke):
     use_session_bus = False
     connection_poke: Optional[ProxyPoke]
     access_point_poke: Optional[ProxyPoke]
 
-    def __init__(self, ip_interface):
-        obj_path = get_device_path_for(ip_interface)
+    def __init__(self, ip_interface=None):
 
-        self.wireless = is_wireless_device(obj_path)
+        if ip_interface:
+            obj_path = get_device_path_for(ip_interface)
+
+            self.wireless = is_wireless_device(obj_path)
+        else:
+
+            obj_path = get_wireless_device()
+            self.wireless = True
 
         if self.wireless:
             interfaces = [DEVICE_INTERFACE, WIRELESS_INTERFACE]
@@ -279,7 +291,7 @@ class AccessPointPoke(ProxyPoke):
 class NetworkBear(Bear):
     name = "network"
 
-    device = DevicePoke(ip_interface="wlp0s20f3")
+    device = DevicePoke()
 
     eww = EwwPrefixView(
         prefix="network", var_names=["icon_name", "id", "status", "strength_display"]

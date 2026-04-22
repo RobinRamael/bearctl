@@ -279,7 +279,7 @@ class AccessPointPoke(ProxyPoke):
 class NetworkBear(Bear):
     name = "network"
 
-    device = DevicePoke(ip_interface="wlp4s0")
+    device = DevicePoke(ip_interface="wlp0s20f3")
 
     eww = EwwPrefixView(
         prefix="network", var_names=["icon_name", "id", "status", "strength_display"]

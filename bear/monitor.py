@@ -6,14 +6,14 @@ import re
 import shutil
 from typing import Tuple
 
+from dataclasses_json import dataclass_json
+import humanize
 import psutil
 
 from bear.bear import Bear, bears, dbus_method
 from bear.eww import EwwPrefixView, EwwWidgetView
 from bear.poke import PausablePollingPoke, PollingPoke
 from bear.utils import BearLevel
-from dataclasses_json import dataclass_json
-import humanize
 
 logger = logging.getLogger(__name__)
 
@@ -159,23 +159,23 @@ class TopBear(Bear):
         self.view.close()
 
 
-@bears.recruit
-class TopCPUBear(TopBear):
-    name = "top_cpu"
+# @bears.recruit
+# class TopCPUBear(TopBear):
+#     name = "top_cpu"
 
-    processes = ProcessesPoke(interval=5, start_paused=True, sort_by="cpu")
+#     processes = ProcessesPoke(interval=5, start_paused=True, sort_by="cpu")
 
-    view = EwwWidgetView(
-        var_name="processes", from_key="processes", widget_name="top-cpu"
-    )
+#     view = EwwWidgetView(
+#         var_name="processes", from_key="processes", widget_name="top-cpu"
+#     )
 
 
-@bears.recruit
-class TopMemoryBear(TopBear):
-    name = "top_memory"
+# @bears.recruit
+# class TopMemoryBear(TopBear):
+#     name = "top_memory"
 
-    processes = ProcessesPoke(interval=5, start_paused=True, sort_by="mem")
+#     processes = ProcessesPoke(interval=5, start_paused=True, sort_by="mem")
 
-    view = EwwWidgetView(
-        var_name="processes", from_key="processes", widget_name="top-memory"
-    )
+#     view = EwwWidgetView(
+#         var_name="processes", from_key="processes", widget_name="top-memory"
+#     )

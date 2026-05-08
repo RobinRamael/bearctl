@@ -8,12 +8,13 @@ import os
 import pprint
 from typing import Dict, List, Type
 
-from bear.utils import in_debug_mode, snake2camel
-from bear.utils import snake2camel
 from dasbus.connection import SessionMessageBus
 from dasbus.typing import get_dbus_type
 from dasbus.xml import XMLGenerator as DBusXML
 from gi.repository import GLib
+
+from bear.utils import in_debug_mode, snake2camel
+from bear.utils import snake2camel
 
 logger = logging.getLogger(__name__)
 
@@ -164,6 +165,8 @@ class Bear(metaclass=BearMeta):
             poke.add_handler(self.update)
             poke.register()
 
+        self.last_context = {}
+
     @classmethod
     def get_client(cls, bus):
         dbus_name = cls.get_dbus_name()
@@ -201,6 +204,8 @@ class Bear(metaclass=BearMeta):
 
         for view in self.views:
             view.render(context)
+
+        self.last_context = context
 
         self.post_update()
 

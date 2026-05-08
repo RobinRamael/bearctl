@@ -2,6 +2,7 @@ import logging
 from typing import Optional
 
 from dasbus.connection import SystemMessageBus
+import humanize
 
 from bear.bear import Bear, DebugView, bears
 from bear.eww import EwwPrefixView
@@ -17,6 +18,7 @@ ACTIVE_CONNECTION_INTERFACE = "org.freedesktop.NetworkManager.Connection.Active"
 DEVICE_INTERFACE = "org.freedesktop.NetworkManager.Device"
 NETWORK_MANAGER_OBJECT_MANAGER_PATH = "/org/freedesktop"
 WIRELESS_INTERFACE = "org.freedesktop.NetworkManager.Device.Wireless"
+DEVICE_STATISTICS_INTERFACE = "org.freedesktop.NetworkManager.Device.Statistics"
 ACCESS_POINT_INTERFACE = "org.freedesktop.NetworkManager.AccessPoint"
 
 WIFI_INTERFACE = "org.freedesktop.NetworkManager.Device.Wireless"
@@ -178,12 +180,16 @@ class DevicePoke(ProxyPoke):
             obj_path = get_wireless_device()
             self.wireless = True
 
+        interfaces = [DEVICE_INTERFACE, DEVICE_STATISTICS_INTERFACE]
+        property_names = ["active_connection", "rx_bytes", "tx_bytes"]
+
         if self.wireless:
-            interfaces = [DEVICE_INTERFACE, WIRELESS_INTERFACE]
-            property_names = ["active_connection", "active_access_point"]
-        else:
-            interfaces = [DEVICE_INTERFACE]
-            property_names = ["active_connection"]
+            interfaces = [
+                DEVICE_INTERFACE,
+                WIRELESS_INTERFACE,
+                DEVICE_STATISTICS_INTERFACE,
+            ]
+            property_names += ["active_access_point"]
 
         super().__init__(
             service_name=NETWORK_MANAGER_SERVICE_NAME,
@@ -294,7 +300,15 @@ class NetworkBear(Bear):
     device = DevicePoke()
 
     eww = EwwPrefixView(
-        prefix="network", var_names=["icon_name", "id", "status", "strength_display"]
+        prefix="network",
+        var_names=[
+            "icon_name",
+            "id",
+            "status",
+            "strength_display",
+            "up_speed",
+            "down_speed",
+        ],
     )
     debug = DebugView()
 
@@ -310,6 +324,23 @@ class NetworkBear(Bear):
         else:
             ctx["status"] = "connected"
 
+        if self.last_context:
+            ctx["down_speed"] = (
+                humanize.naturalsize(
+                    self.device.data["rx_bytes"] - self.last_context["rx_bytes"]
+                )
+                + "/s"
+            )
+            ctx["up_speed"] = (
+                humanize.naturalsize(
+                    self.device.data["tx_bytes"] - self.last_context["tx_bytes"]
+                )
+                + "/s"
+            )
+        else:
+            ctx["down_speed"] = 0
+            ctx["up_speed"] = 0
+
         if self.device.wireless:
             strength = self.device.data.get("strength", 0)
             ctx["strength_display"] = f"{strength}%" if network_connected else ""
@@ -323,3 +354,6 @@ class NetworkBear(Bear):
             ctx["icon_name"] = f"WIRED_NETWORK_{'ON' if network_connected else 'OFF'}"
 
         return ctx
+
+    def post_init(self):
+        self.device.get_proxy().RefreshRateMs = 1000

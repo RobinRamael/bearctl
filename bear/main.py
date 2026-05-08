@@ -43,6 +43,8 @@ def cli(color, verbosity, debug):
     logger.handlers = [handler]
     logger.setLevel(verbosity.upper())
 
+    logging.getLogger("dasbus.connection").setLevel(logging.ERROR)
+
     for module in debug:
         logging.getLogger(f"bear.{module}").setLevel(logging.DEBUG)
 

@@ -293,6 +293,10 @@ class AccessPointPoke(ProxyPoke):
         )
 
 
+def short_naturalsize_speed(bs):
+    return humanize.naturalsize(bs).replace("Bytes", "B") + "/s"
+
+
 @bears.recruit
 class NetworkBear(Bear):
     name = "network"
@@ -325,21 +329,15 @@ class NetworkBear(Bear):
             ctx["status"] = "connected"
 
         if self.last_context:
-            ctx["down_speed"] = (
-                humanize.naturalsize(
-                    self.device.data["rx_bytes"] - self.last_context["rx_bytes"]
-                )
-                + "/s"
+            ctx["down_speed"] = short_naturalsize_speed(
+                self.device.data["rx_bytes"] - self.last_context["rx_bytes"]
             )
-            ctx["up_speed"] = (
-                humanize.naturalsize(
-                    self.device.data["tx_bytes"] - self.last_context["tx_bytes"]
-                )
-                + "/s"
+            ctx["up_speed"] = short_naturalsize_speed(
+                self.device.data["tx_bytes"] - self.last_context["tx_bytes"]
             )
         else:
-            ctx["down_speed"] = 0
-            ctx["up_speed"] = 0
+            ctx["down_speed"] = "0 B/s"
+            ctx["up_speed"] = "0 B/s"
 
         if self.device.wireless:
             strength = self.device.data.get("strength", 0)

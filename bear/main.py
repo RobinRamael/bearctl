@@ -5,10 +5,10 @@ import click
 from gi.repository import GLib
 
 from bear.bear import bears
-from bear.eww import EwwController, eww
+from bear.eww import eww
 from bear.utils import in_debug_mode
 
-logger = logging.getLogger()
+logger = logging.getLogger("bear")
 
 
 @click.group()
@@ -59,7 +59,10 @@ def service(bear_names, eww_no_listen=False, no_eww=False, reload=False):
         import hupper
         from hupper.polling import PollingFileMonitor
 
+        logger.warning("Hupper reload behaviour active")
+
         if hupper.is_active():
+            logger.warning("Reloading...")
             hupper.start_reloader("bear.main.cli", monitor_factory=PollingFileMonitor)
 
     loop = GLib.MainLoop()

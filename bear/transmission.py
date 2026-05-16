@@ -89,7 +89,7 @@ class TransmissionPoke(PollingPoke):
         return data
 
 
-@bears.recruit
+# @bears.recruit
 class TransmissionBear(Bear):
     name = "transmission"
     torrents = TransmissionPoke(interval=10)

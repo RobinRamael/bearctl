@@ -6,12 +6,13 @@ import threading
 import time
 from typing import Any, Callable, Dict, Generic, Hashable, List, Optional, Type, TypeVar
 
-from bear.eww import EwwLogsListener
-from bear.utils import error_mapper, snake2camel
 from dasbus.client.proxy import get_object_handler, get_object_path
 from dasbus.connection import MessageBus, SessionMessageBus, SystemMessageBus
 from dasbus.constants import DBUS_FLAG_NONE
 from gi.repository import GLib
+
+from bear.eww import EwwLogsListener
+from bear.utils import error_mapper, snake2camel
 
 T = TypeVar("T", bound=Type)
 

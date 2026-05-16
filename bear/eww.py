@@ -258,5 +258,4 @@ class EwwWidgetView(EwwJSONView):
         self.visible.set(True)
 
     def close(self):
-        pass
         self.visible.set(False)

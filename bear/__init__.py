@@ -7,4 +7,5 @@ from . import network
 from . import sway
 from . import systemd
 from . import volume
+from . import top
 from . import transmission

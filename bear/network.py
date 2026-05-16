@@ -329,15 +329,13 @@ class NetworkBear(Bear):
             ctx["status"] = "connected"
 
         if self.last_context:
-            ctx["down_speed"] = short_naturalsize_speed(
-                self.device.data["rx_bytes"] - self.last_context["rx_bytes"]
-            )
-            ctx["up_speed"] = short_naturalsize_speed(
-                self.device.data["tx_bytes"] - self.last_context["tx_bytes"]
-            )
+            down = self.device.data["rx_bytes"] - self.last_context["rx_bytes"]
+            up = self.device.data["tx_bytes"] - self.last_context["tx_bytes"]
         else:
-            ctx["down_speed"] = "0 B/s"
-            ctx["up_speed"] = "0 B/s"
+            down, up = 0, 0
+
+        ctx["down_speed"] = short_naturalsize_speed(down)
+        ctx["up_speed"] = short_naturalsize_speed(up)
 
         if self.device.wireless:
             strength = self.device.data.get("strength", 0)
@@ -354,4 +352,5 @@ class NetworkBear(Bear):
         return ctx
 
     def post_init(self):
+        # this has to be set for the network speeds to update
         self.device.get_proxy().RefreshRateMs = 1000

@@ -115,7 +115,12 @@ class EwwController:
         self.debug_mode_var.set(debug_enabled)
 
         self.eww_command = self.var("EWW_CMD")
-        eww_cmd = f"{self.executable} -c {self.config_path}"
+
+        if self.config_path:
+            eww_cmd = f"{self.executable} -c {self.config_path}"
+        else:
+            eww_cmd = f"{self.executable}"
+
         logger.info(f"Setting eww variable EWW_CMD={eww_cmd}")
         self.eww_command.set(eww_cmd)
 

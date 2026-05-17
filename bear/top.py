@@ -91,12 +91,10 @@ NAME_MAPPING = {
     "Privileged Cont": "firefox",
     "Web Content": "firefox",
     "WebExtensions": "firefox",
+    "kitten": "kitty",
 }
 
 WRAPPED_RE = re.compile("\.(.*)-wrapped?")
-
-
-INTERPRETERS = ["python3."]
 
 
 def transform_name(name: str) -> str:

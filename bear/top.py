@@ -1,38 +1,42 @@
 from abc import abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+import logging
 from operator import attrgetter
 import os
 import os
 import re
-from typing import Optional
+from typing import DefaultDict, Iterable, Optional
 
 from bear.bear import Bear, DebugView, bears
 from bear.eww import EwwWidgetView
 from bear.poke import PollingPoke
 from bear.poke import PollingPoke
 
-# unused for now
-NAME_MAPPING = {
-    "Isolated Web Co": "firefox",
-    "firefox-bin": "firefox",
-    "Privileged Cont": "firefox",
-    "Web Content": "firefox",
-    "WebExtensions": "firefox",
-}
-
-WRAPPED_RE = re.compile("\.(.*)-wrapped")
+logger = logging.getLogger(__name__)
 
 
 class FailedToGetStat(Exception):
     pass
 
 
-def read_proc_name(pid):
+def read_proc_name(pid: int) -> str:
     try:
         with open(f"/proc/{pid}/comm") as f:
             return f.read().strip()
     except FileNotFoundError:
         return "<unknown>"
+
+
+def read_proc_cmdline(pid: int) -> list[str]:
+    try:
+        with open(f"/proc/{pid}/cmdline", "rb") as f:  # note: binary mode
+            data = f.read()
+        if not data:
+            return []  # kernel thread — cmdline is empty
+        args = data.rstrip(b"\x00").split(b"\x00")
+        return [a.decode("utf-8", errors="replace") for a in args]
+    except FileNotFoundError:
+        return []
 
 
 @dataclass
@@ -41,6 +45,7 @@ class Process:
     pid: int
 
     _name: Optional[str] = None
+    _args: Optional[list[str]] = None
 
     @property
     def name(self) -> str:
@@ -50,11 +55,98 @@ class Process:
         return self._name
 
     @property
+    def useful_name(self) -> str:
+        if self.name.startswith("python"):
+            s = self.python_name_transform()
+            return s
+        else:
+            return self.name
+
+    @property
     def short_name(self):
         return self.name
 
+    @property
+    def args(self):
+        if self._args is None:
+            self._args = read_proc_cmdline(self.pid)
+
+        return self._args
+
+    def python_name_transform(self):
+        if self.args[1] in ("-m", "-c"):
+            if self.args[2] == "bear.main":
+                return "bear-debug"
+            else:
+                # use process name instead of full nixos path (which is in
+                # args[0])
+                return f"{self.name} " + " ".join(self.args[1:])
+        else:
+            return self.args[1]
+
+
+NAME_MAPPING = {
+    "Isolated Web Co": "firefox",
+    "firefox-bin": "firefox",
+    "Privileged Cont": "firefox",
+    "Web Content": "firefox",
+    "WebExtensions": "firefox",
+}
+
+WRAPPED_RE = re.compile("\.(.*)-wrapped?")
+
+
+INTERPRETERS = ["python3."]
+
+
+def transform_name(name: str) -> str:
+
+    m = WRAPPED_RE.match(name)
+
+    if m:
+        name = m.group(1)
+
+    try:
+        return NAME_MAPPING[name]
+    except KeyError:
+        return name
+
+
+@dataclass
+class GroupedProcess:
+    processes: list[Process]
+    name: str
+
+    @property
+    def count(self):
+        return len(self.processes)
+
+    @property
+    def stat(self):
+        return sum(p.stat for p in self.processes)
+
     def to_dict(self):
-        return {"stat": self.stat, "stat_repr": f"{self.stat:.2f}", "name": self.name}
+        return {
+            "stat": self.stat,
+            "stat_repr": f"{self.stat:.2f}",
+            "name": self.name,
+            "count": len(self.processes),
+        }
+
+    @classmethod
+    def group(cls, processes: Iterable[Process]) -> list["GroupedProcess"]:
+        name_to_proc = DefaultDict(list)
+
+        for proc in processes:
+            name_to_proc[transform_name(proc.useful_name)].append(proc)
+
+        return [GroupedProcess(procs, name) for name, procs in name_to_proc.items()]
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}(name={self.name},"
+            f"count={self.count}, stat={self.stat:0.2f})"
+        )
 
 
 class TopPoke(PollingPoke):
@@ -135,7 +227,9 @@ class TopCPUPoke(TopPoke):
         self._last_snapshot = _build_process_dict(current_processes)
         self._last_total_ticks = new_total_ticks
 
-        return sorted(results, key=attrgetter("stat"), reverse=True)[: self.n]
+        return sorted(
+            GroupedProcess.group(results), key=attrgetter("stat"), reverse=True
+        )[: self.n]
 
 
 def total_ram_kb():
@@ -168,7 +262,11 @@ class TopMemoryPoke(TopPoke):
             raise FailedToGetStat from e
 
     def poll(self, n=10):
-        return sorted(self.get_processes(), key=attrgetter("stat"), reverse=True)[:n]
+        return sorted(
+            GroupedProcess.group(self.get_processes()),
+            key=attrgetter("stat"),
+            reverse=True,
+        )[:n]
 
 
 @bears.recruit

@@ -184,6 +184,9 @@ def _build_process_dict(processes) -> dict[int, Process]:
     return {p.pid: p for p in processes}
 
 
+N_CORES = os.cpu_count() or 1
+
+
 class TopCPUPoke(TopPoke):
 
     def register(self):
@@ -219,7 +222,7 @@ class TopCPUPoke(TopPoke):
             except KeyError:  # process spawned after last snapshot was made
                 ticks_since_last = p.stat
 
-            cpu_perc = (ticks_since_last / total_ticks_since_last) * 100
+            cpu_perc = (ticks_since_last / total_ticks_since_last) * 100 * N_CORES
             results.append(Process(pid=p.pid, stat=cpu_perc))
 
         self._last_snapshot = _build_process_dict(current_processes)

@@ -8,7 +8,7 @@ import re
 from typing import DefaultDict, Iterable, Optional
 
 from bear.bear import Bear, DebugView, bears
-from bear.eww import EwwWidgetView
+from bear.eww import EwwJSONView
 from bear.poke import PollingPoke
 from bear.poke import PollingPoke
 
@@ -16,6 +16,10 @@ logger = logging.getLogger(__name__)
 
 
 class FailedToGetStat(Exception):
+    pass
+
+
+class NoSuchProcess(Exception):
     pass
 
 
@@ -152,6 +156,11 @@ class TopPoke(PollingPoke):
         super().__init__(*args, **kwargs)
         self.n = n
 
+    def register(self):
+        super().register()
+
+        self.last_results = []
+
     @abstractmethod
     def read_proc_stat(self, pid: int) -> float:
         raise NotImplemented
@@ -171,6 +180,12 @@ class TopPoke(PollingPoke):
                 pass
 
         return processes
+
+    def get_process_by_name(self, name) -> GroupedProcess:
+        try:
+            return next(p for p in self.last_results if p.name == name)
+        except StopIteration:
+            raise NoSuchProcess
 
 
 def system_total_ticks():
@@ -228,9 +243,11 @@ class TopCPUPoke(TopPoke):
         self._last_snapshot = _build_process_dict(current_processes)
         self._last_total_ticks = new_total_ticks
 
-        return sorted(
-            GroupedProcess.group(results), key=attrgetter("stat"), reverse=True
-        )[: self.n]
+        grouped_results = GroupedProcess.group(results)
+
+        self.last_results = grouped_results
+
+        return sorted(grouped_results, key=attrgetter("stat"), reverse=True)[: self.n]
 
 
 def total_ram_kb():
@@ -263,8 +280,11 @@ class TopMemoryPoke(TopPoke):
             raise FailedToGetStat from e
 
     def poll(self, n=10):
+        results = GroupedProcess.group(self.get_processes())
+        self.last_results = results
+
         return sorted(
-            GroupedProcess.group(self.get_processes()),
+            results,
             key=attrgetter("stat"),
             reverse=True,
         )[:n]
@@ -275,11 +295,21 @@ class TopMemoryBear(Bear):
     name = "top_memory"
     processes = TopMemoryPoke(interval=1, n=10)
 
-    view = EwwWidgetView(
-        var_name="top_memory", from_key="processes", widget_name="top-memory"
-    )
+    top_view = EwwJSONView(var_name="top_memory", from_key="processes")
+
+    pinned_view = EwwJSONView(var_name="pinned_memory", from_key="pinned_memory")
 
     debug = DebugView()
+
+    def get_extra_context(self):
+        ctx = super().get_extra_context()
+
+        try:
+            ctx["pinned_memory"] = [self.processes.get_process_by_name("bearctl")]
+        except:
+            ctx["pinned_memory"] = []
+
+        return ctx
 
 
 @bears.recruit
@@ -287,7 +317,18 @@ class TopCPUBear(Bear):
     name = "top_cpu"
     processes = TopCPUPoke(interval=1, n=10)
 
-    view = EwwWidgetView(
-        var_name="top_cpu", from_key="processes", widget_name="top-cpu"
-    )
+    top_view = EwwJSONView(var_name="top_cpu", from_key="processes")
+
+    pinned_view = EwwJSONView(var_name="pinned_cpu", from_key="pinned_cpu")
+
     debug = DebugView()
+
+    def get_extra_context(self):
+        ctx = super().get_extra_context()
+
+        try:
+            ctx["pinned_cpu"] = [self.processes.get_process_by_name("bearctl")]
+        except:
+            ctx["pinned_cpu"] = []
+
+        return ctx

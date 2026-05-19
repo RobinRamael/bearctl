@@ -6,14 +6,14 @@ import re
 import shutil
 from typing import Tuple
 
+from dataclasses_json import dataclass_json
+import humanize
 import psutil
 
 from bear.bear import Bear, bears, dbus_method
-from bear.eww import EwwPrefixView, EwwWidgetView
+from bear.eww import EwwPrefixView
 from bear.poke import PausablePollingPoke, PollingPoke
 from bear.utils import BearLevel
-from dataclasses_json import dataclass_json
-import humanize
 
 logger = logging.getLogger(__name__)
 
@@ -72,5 +72,3 @@ class DiskSpaceBear(MonitorBear):
             ),
             "metric": humanize.naturalsize(self.metric.data),
         }
-
-

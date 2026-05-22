@@ -249,9 +249,11 @@ class ProcessMonitor:
         for pid in active_pids():
             try:
                 process = _Process.from_pid(pid)
-            except FailedToGetStat as e:
-                logger.warning(f"Failed to read some stats for pid {pid}:")
-                logger.exception(e)
+            except FailedToGetStat:
+                logger.debug(
+                    f"Tried to get stats from process {pid}, but the process vanished before we could."
+                )
+
                 continue
 
             raw_processes[pid] = process

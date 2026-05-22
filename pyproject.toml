@@ -1,7 +1,7 @@
 [project]
 name = "bearctl"
 version = "0.1.0"
-description = "Add your description here"
+description = "I accidentally an entiry DE"
 readme = "README.md"
 requires-python = "<3.12,>=3.11"
 dependencies = [
@@ -24,6 +24,7 @@ dev = [
     "ipython",
     "pytest",
     "pytest-mock",
+    "pytest-sugar",
     "lxml"
 ]
 

@@ -1,15 +1,16 @@
 from abc import abstractmethod
-from dataclasses import dataclass, field
+from typing import Iterable
+from dataclasses import dataclass
+from collections import defaultdict
 import logging
 from operator import attrgetter
 import os
 import os
 import re
-from typing import DefaultDict, Iterable, Optional
+from typing import Optional
 
-from bear.bear import Bear, DebugView, bears
+from bear.bear import DebugView, bears, Bear
 from bear.eww import EwwJSONView
-from bear.poke import PollingPoke
 from bear.poke import PollingPoke
 
 logger = logging.getLogger(__name__)
@@ -43,75 +44,143 @@ def read_proc_cmdline(pid: int) -> list[str]:
         return []
 
 
-@dataclass
-class Process:
-    stat: float
-    pid: int
+def read_vm_rss_kb(pid):
+    try:
+        with open(f"/proc/{pid}/status") as f:
+            for line in f:
+                if line.startswith("VmRSS:"):
+                    rss_kb = float(line.split()[1])  # kB
+                    return rss_kb
+            else:
+                # kernel process, default to 0 (which makes sense as those
+                # don't consume user space memory)
+                return 0
 
-    _name: Optional[str] = None
+    except FileNotFoundError as e:
+        raise FailedToGetStat from e
+
+
+def read_total_cpu_ticks(pid):
+    try:
+        with open(f"/proc/{pid}/stat") as f:
+            fields = f.read().split()
+        utime = int(fields[13])
+        stime = int(fields[14])
+        return utime + stime
+    except (FileNotFoundError, IndexError, ValueError) as e:
+        raise FailedToGetStat from e
+
+
+def total_ram_kb():
+    with open("/proc/meminfo") as f:
+        for line in f:
+            if line.startswith("MemTotal:"):
+                return int(line.split()[1])
+        else:
+            raise Exception("Unable to read total available memory.")
+
+
+@dataclass
+class _Process:
+    process_ticks: int
+    vm_rss_kb: float
+    pid: int
+    name: str
+
     _args: Optional[list[str]] = None
 
-    @property
-    def name(self) -> str:
-        if not self._name:
-            self._name = read_proc_name(self.pid)
-
-        return self._name
-
-    @property
-    def useful_name(self) -> str:
-        if self.name.startswith("python"):
-            s = self.python_name_transform()
-            return s
-        else:
-            return self.name
+    @classmethod
+    def from_pid(cls, pid):
+        return cls(
+            pid=pid,
+            name=read_proc_name(pid),
+            process_ticks=read_total_cpu_ticks(pid),
+            vm_rss_kb=read_vm_rss_kb(pid),
+        )
 
     @property
-    def short_name(self):
-        return self.name
-
-    @property
-    def args(self):
+    def args(self) -> list[str]:
         if self._args is None:
             self._args = read_proc_cmdline(self.pid)
 
         return self._args
 
-    def python_name_transform(self):
-        if self.args[1] in ("-m", "-c"):
-            if self.args[2] == "bear.main":
-                return "bear-debug"
-            else:
-                # use process name instead of full nixos path (which is in
-                # args[0])
-                return f"{self.name} " + " ".join(self.args[1:])
+
+N_CORES = os.cpu_count() or 1
+
+
+@dataclass
+class Process:
+
+    current_snapshot: _Process
+    last_snapshot: _Process
+    d_ticks: int  # number of ticks between these two snapshots
+    total_ram_kb: int
+
+    @property
+    def name(self):
+        return self.current_snapshot.name
+
+    @property
+    def memory_usage(self):
+        return (self.current_snapshot.vm_rss_kb / self.total_ram_kb) * 100
+
+    @property
+    def cpu_usage(self) -> float:
+        d_process_ticks = (
+            self.current_snapshot.process_ticks - self.last_snapshot.process_ticks
+        )
+        return (d_process_ticks / self.d_ticks) * 100 * N_CORES
+
+    def __repr__(self):
+        return (
+            f"Process(name={self.name!r}, "
+            f"pid={self.current_snapshot.pid}, "
+            f"cpu={self.cpu_usage:.1f}%, "
+            f"mem={self.memory_usage:.1f}%)"
+        )
+
+
+def system_total_ticks():
+    """Sum of all cpu ticks from /proc/stat (across all cores)."""
+    with open("/proc/stat") as f:
+        fields = f.readline().split()[1:]  # first line is aggregate 'cpu'
+    return sum(int(f) for f in fields)
+
+
+def active_pids():
+    for entry in os.scandir("/proc"):
+        if not entry.name.isdigit():
+            continue
+
+        yield int(entry.name)
+
+
+class NameTransformer:
+    @abstractmethod
+    def transform(self, name: str) -> str:
+        raise NotImplementedError
+
+
+class Mapping(NameTransformer):
+    def __init__(self, mapping):
+        self.mapping = mapping
+
+    def transform(self, name: str) -> str:
+        return self.mapping.get(name, name)
+
+
+class Regex(NameTransformer):
+    def __init__(self, regex):
+        self.regex = re.compile(regex)
+
+    def transform(self, name: str) -> str:
+        m = self.regex.match(name)
+
+        if m:
+            return m.group(1)
         else:
-            return self.args[1]
-
-
-NAME_MAPPING = {
-    "Isolated Web Co": "firefox",
-    "firefox-bin": "firefox",
-    "Privileged Cont": "firefox",
-    "Web Content": "firefox",
-    "WebExtensions": "firefox",
-    "kitten": "kitty",
-}
-
-WRAPPED_RE = re.compile("\.(.*)-wrapped?")
-
-
-def transform_name(name: str) -> str:
-
-    m = WRAPPED_RE.match(name)
-
-    if m:
-        name = m.group(1)
-
-    try:
-        return NAME_MAPPING[name]
-    except KeyError:
-        return name
+            return name
 
 
 @dataclass
@@ -124,211 +193,172 @@ class GroupedProcess:
         return len(self.processes)
 
     @property
-    def stat(self):
-        return sum(p.stat for p in self.processes)
+    def memory_usage(self):
+        return sum(p.memory_usage for p in self.processes)
+
+    @property
+    def cpu_usage(self) -> float:
+        return sum(p.cpu_usage for p in self.processes)
 
     def to_dict(self):
         return {
-            "stat": self.stat,
-            "stat_repr": f"{self.stat:.2f}",
+            "cpu_usage": self.cpu_usage,
+            "cpu_usage_repr": f"{self.cpu_usage:.2f}",
+            "memory_usage": self.memory_usage,
+            "memory_usage_repr": f"{self.memory_usage:.2f}",
             "name": self.name,
             "count": len(self.processes),
         }
 
-    @classmethod
-    def group(cls, processes: Iterable[Process]) -> list["GroupedProcess"]:
-        name_to_proc = DefaultDict(list)
 
-        for proc in processes:
-            name_to_proc[transform_name(proc.useful_name)].append(proc)
+class ProcessGrouper:
 
-        return [GroupedProcess(procs, name) for name, procs in name_to_proc.items()]
+    def __init__(self, transformers=None):
+        self.transformers = transformers or []
 
-    def __repr__(self):
-        return (
-            f"{self.__class__.__name__}(name={self.name},"
-            f"count={self.count}, stat={self.stat:0.2f})"
-        )
+    def transform(self, name: str) -> str:
+        for transformer in self.transformers:
+            name = transformer.transform(name)
+
+        return name
+
+    def group(self, processes: Iterable[Process]) -> list[GroupedProcess]:
+        groups = defaultdict(list)
+        for process in processes:
+            groups[self.transform(process.name)].append(process)
+
+        return [GroupedProcess(name=name, processes=ps) for name, ps in groups.items()]
 
 
-class TopPoke(PollingPoke):
-    def __init__(self, *args, n=10, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.n = n
+class ProcessMonitor:
 
-    def register(self):
-        super().register()
+    def __init__(self, total_ram_kb, transformers=None):
+        self._last_snapshot = {}
+        self.total_ram_kb = total_ram_kb
+        self._last_system_ticks = 0
 
-        self.last_results = []
+        self.grouper = ProcessGrouper(transformers=(transformers or []))
 
-    @abstractmethod
-    def read_proc_stat(self, pid: int) -> float:
-        raise NotImplemented
+    def start_monitoring(self):
+        self._last_snapshot = self.make_snapshot()
+        self._last_system_ticks = system_total_ticks()
 
-    def get_processes(self) -> list[Process]:
-        processes = []
-        for entry in os.scandir("/proc"):
-            if not entry.name.isdigit():
+    def make_snapshot(self):
+        raw_processes = {}
+
+        for pid in active_pids():
+            try:
+                process = _Process.from_pid(pid)
+            except FailedToGetStat as e:
+                logger.warning(f"Failed to read some stats for pid {pid}:")
+                logger.exception(e)
                 continue
 
-            pid = int(entry.name)
+            raw_processes[pid] = process
 
+        return raw_processes
+
+    def get_processes(self) -> list[Process]:
+        if not self._last_snapshot:
+            raise RuntimeError("Can't get processes before start_monitoring is called")
+
+        new_snapshot = self.make_snapshot()
+        new_system_ticks = system_total_ticks()
+
+        d_ticks = new_system_ticks - self._last_system_ticks
+
+        processes = []
+        for process in new_snapshot.values():
             try:
-                value = self.read_proc_stat(pid)
-                processes.append(Process(stat=value, pid=pid))
-            except FailedToGetStat:
-                pass
+                processes.append(
+                    Process(
+                        current_snapshot=process,
+                        last_snapshot=self._last_snapshot[process.pid],
+                        d_ticks=d_ticks,
+                        total_ram_kb=self.total_ram_kb,
+                    )
+                )
+            except KeyError:
+                continue
 
+        self._last_system_ticks = new_system_ticks
+        self._last_snapshot = new_snapshot
         return processes
 
-    def get_process_by_name(self, name) -> GroupedProcess:
-        try:
-            return next(p for p in self.last_results if p.name == name)
-        except StopIteration:
-            raise NoSuchProcess
+    def get_grouped_processes(self) -> list[GroupedProcess]:
+        return self.grouper.group(self.get_processes())
 
 
-def system_total_ticks():
-    """Sum of all cpu ticks from /proc/stat (across all cores)."""
-    with open("/proc/stat") as f:
-        fields = f.readline().split()[1:]  # first line is aggregate 'cpu'
-    return sum(int(f) for f in fields)
+class PinnedProcessPicker:
+    @abstractmethod
+    def is_pinned(self, process) -> bool:
+        raise NotImplementedError
 
 
-def _build_process_dict(processes) -> dict[int, Process]:
-    return {p.pid: p for p in processes}
+class LiteralPicker(PinnedProcessPicker):
+    def __init__(self, *names):
+        self.names = names
+
+    def is_pinned(self, process) -> bool:
+        return any(process.name == name for name in self.names)
 
 
-N_CORES = os.cpu_count() or 1
+class ProcessesPoke(PollingPoke):
 
+    def __init__(self, *args, n=10, pinned_pickers=None, transformers=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.n = n
+        self.process_monitor = ProcessMonitor(
+            total_ram_kb=total_ram_kb(), transformers=transformers or []
+        )
 
-class TopCPUPoke(TopPoke):
+        self.pinned_pickers = pinned_pickers or []
 
     def register(self):
-        # first get the initial values, only then start polling, this ensure the
-        # initial values here are used for the initial data (set deep in
-        # register call) which then makes at least a tiny amount of sense:
-        self._last_snapshot = _build_process_dict(self.get_processes())
-        self._last_total_ticks = system_total_ticks()
-
+        # register already calls poll, so we have to have started before we do
+        # the rest of the register
+        self.process_monitor.start_monitoring()
         super().register()
 
-    def read_proc_stat(self, pid):
-        try:
-            with open(f"/proc/{pid}/stat") as f:
-                fields = f.read().split()
-            utime = int(fields[13])
-            stime = int(fields[14])
-            return utime + stime
-        except (FileNotFoundError, IndexError, ValueError) as e:
-            raise FailedToGetStat from e
+    def is_pinned(self, process):
+        return any(picker.is_pinned(process) for picker in self.pinned_pickers)
 
     def poll(self):
-        current_processes = self.get_processes()
-        new_total_ticks = system_total_ticks()
+        processes = self.process_monitor.get_grouped_processes()
 
-        total_ticks_since_last = new_total_ticks - self._last_total_ticks
-        assert total_ticks_since_last, "No ticks passed since last snapshot??"
+        top_cpu = sorted(processes, key=attrgetter("cpu_usage"), reverse=True)[: self.n]
+        top_memory = sorted(processes, key=attrgetter("memory_usage"), reverse=True)[
+            : self.n
+        ]
 
-        results = []
-        for p in current_processes:
-            try:
-                ticks_since_last = p.stat - self._last_snapshot[p.pid].stat
-            except KeyError:  # process spawned after last snapshot was made
-                ticks_since_last = p.stat
+        pinned = [p for p in processes if self.is_pinned(p)]
 
-            cpu_perc = (ticks_since_last / total_ticks_since_last) * 100 * N_CORES
-            results.append(Process(pid=p.pid, stat=cpu_perc))
-
-        self._last_snapshot = _build_process_dict(current_processes)
-        self._last_total_ticks = new_total_ticks
-
-        grouped_results = GroupedProcess.group(results)
-
-        self.last_results = grouped_results
-
-        return sorted(grouped_results, key=attrgetter("stat"), reverse=True)[: self.n]
-
-
-def total_ram_kb():
-    with open("/proc/meminfo") as f:
-        for line in f:
-            if line.startswith("MemTotal:"):
-                return int(line.split()[1])
-        else:
-            raise Exception("Unable to read total available memory.")
-
-
-_TOTAL_RAM_KB = total_ram_kb()
-
-
-class TopMemoryPoke(TopPoke):
-
-    def read_proc_stat(self, pid) -> float:
-        try:
-            with open(f"/proc/{pid}/status") as f:
-                for line in f:
-                    if line.startswith("VmRSS:"):
-                        rss_kb = float(line.split()[1])  # kB
-                        return (rss_kb / _TOTAL_RAM_KB) * 100
-                else:
-                    # kernel process, default to 0 (which makes sense as those
-                    # don't consume user space memory)
-                    return 0
-
-        except FileNotFoundError as e:
-            raise FailedToGetStat from e
-
-    def poll(self, n=10):
-        results = GroupedProcess.group(self.get_processes())
-        self.last_results = results
-
-        return sorted(
-            results,
-            key=attrgetter("stat"),
-            reverse=True,
-        )[:n]
+        return {"top_cpu": top_cpu, "top_memory": top_memory, "pinned": pinned}
 
 
 @bears.recruit
-class TopMemoryBear(Bear):
-    name = "top_memory"
-    processes = TopMemoryPoke(interval=1, n=10)
+class ProcessMonitorBear(Bear):
+    name = "top"
 
-    top_view = EwwJSONView(var_name="top_memory", from_key="processes")
+    processes = ProcessesPoke(
+        interval=1,
+        n=10,
+        pinned_pickers=[LiteralPicker("bearctl", "firefox")],
+        transformers=[
+            Regex(r"\.(.*)-wrapped?"),
+            Mapping(
+                {
+                    "Isolated Web Co": "firefox",
+                    "firefox-bin": "firefox",
+                    "Privileged Cont": "firefox",
+                    "Web Content": "firefox",
+                    "WebExtensions": "firefox",
+                    "kitten": "kitty",
+                }
+            ),
+        ],
+    )
 
-    pinned_view = EwwJSONView(var_name="pinned_memory", from_key="pinned_memory")
-
-    debug = DebugView()
-
-    def get_extra_context(self):
-        ctx = super().get_extra_context()
-
-        try:
-            ctx["pinned_memory"] = [self.processes.get_process_by_name("bearctl")]
-        except:
-            ctx["pinned_memory"] = []
-
-        return ctx
-
-
-@bears.recruit
-class TopCPUBear(Bear):
-    name = "top_cpu"
-    processes = TopCPUPoke(interval=1, n=10)
-
-    top_view = EwwJSONView(var_name="top_cpu", from_key="processes")
-
-    pinned_view = EwwJSONView(var_name="pinned_cpu", from_key="pinned_cpu")
+    eww_pinned = EwwJSONView("processes", from_key="processes")
 
     debug = DebugView()
-
-    def get_extra_context(self):
-        ctx = super().get_extra_context()
-
-        try:
-            ctx["pinned_cpu"] = [self.processes.get_process_by_name("bearctl")]
-        except:
-            ctx["pinned_cpu"] = []
-
-        return ctx

@@ -351,6 +351,7 @@ class ProcessMonitorBear(Bear):
             Mapping(
                 {
                     "Isolated Web Co": "firefox",
+                    "Isolated Servic": "firefox",
                     "firefox-bin": "firefox",
                     "Privileged Cont": "firefox",
                     "Web Content": "firefox",

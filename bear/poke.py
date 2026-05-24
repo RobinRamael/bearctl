@@ -369,17 +369,22 @@ class PollingPoke(Poke, Generic[P]):
             return f"{self.__class__.__name__}()"
 
     def do_poll(self):
-        prev_data = self.current_data
-        logger.debug(f"polling in {self}")
-        self.current_data = self.poll()
+        try:
+            prev_data = self.current_data
+            logger.debug(f"polling in {self}")
+            self.current_data = self.poll()
 
-        if prev_data != self.current_data:
-            self.poke()
-        else:
-            logger.debug(
-                f"No state change, not poking any bears, state was {self.current_data}"
-            )
+            if prev_data != self.current_data:
+                self.poke()
+            else:
+                logger.debug(
+                    f"No state change, not poking any bears, state was {self.current_data}"
+                )
+        except Exception as e:
+            logger.exception(e)
 
+        # rv denotes wether we should repeat the action, so yes, even when it
+        # failed, keep going.
         return True
 
     def get_data_dict(self) -> dict:

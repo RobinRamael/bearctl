@@ -387,5 +387,10 @@ class ControlBear(Bear):
     def refresh_all(self):
         bears.refresh_all()
 
+    @dbus_method(str, str)
+    def set_log_level(self, module: str, lvl: str):
+        logger.info(f"setting logging for {module} to {lvl}")
+        logging.getLogger(module).setLevel(lvl)
+
     def refresh(self):
         pass

@@ -364,4 +364,4 @@ class ProcessMonitorBear(Bear):
 
     eww_pinned = EwwJSONView("processes", from_key="processes")
 
-    debug = DebugView()
+    debug = DebugView(pprint=False)

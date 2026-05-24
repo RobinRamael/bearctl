@@ -266,11 +266,13 @@ class BearView(ABC):
 
 
 class DebugView(BearView):
-    def __init__(self, keys=None, key=None):
+    def __init__(self, keys=None, key=None, pprint=True):
         if key:
             self.keys = [key]
         else:
             self.keys = keys
+
+        self.pprint = pprint
 
     def __set_name__(self, bear_cls: Bear, name):
         super().__set_name__(bear_cls, name)
@@ -286,7 +288,9 @@ class DebugView(BearView):
             for f in self.keys:
                 msg[f] = context.get(f, None)
 
-        self.logger.debug("data from debug view: \n" + pprint.pformat(msg))
+        data_repr = pprint.pformat(msg) if self.pprint else str(msg)
+
+        self.logger.debug("data from debug view: \n" + data_repr)
 
 
 def get_service_name():

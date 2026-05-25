@@ -28,7 +28,7 @@ def read_proc_name(pid: int) -> str:
     try:
         with open(f"/proc/{pid}/comm") as f:
             return f.read().strip()
-    except FileNotFoundError:
+    except (FileNotFoundError, ProcessLookupError):
         return "<unknown>"
 
 
@@ -268,6 +268,12 @@ class ProcessMonitor:
         new_system_ticks = system_total_ticks()
 
         d_ticks = new_system_ticks - self._last_system_ticks
+
+        if d_ticks == 0:
+            logger.warning(
+                "Number of ticks since last snapshot was 0. Were we suspended? Skipping. "
+            )
+            return []
 
         processes = []
         for process in new_snapshot.values():

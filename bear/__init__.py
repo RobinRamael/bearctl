@@ -2,6 +2,7 @@ from . import battery
 from . import bluetooth
 from . import dunst
 from . import monitor
+from . import mullvad
 from . import music
 from . import network
 from . import sway

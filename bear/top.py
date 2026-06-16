@@ -354,6 +354,7 @@ class ProcessMonitorBear(Bear):
         pinned_pickers=[LiteralPicker("bearctl", "firefox")],
         transformers=[
             Regex(r"\.(.*)-wrapped?"),
+            Regex(r"\.(.*)-unwrapped?"),
             Mapping(
                 {
                     "Isolated Web Co": "firefox",

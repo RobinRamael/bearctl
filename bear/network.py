@@ -159,50 +159,58 @@ class ActiveConnectionsPoke(Poke, DBusMixin):
         return {"id": self.connection_poke.data.get("id", None)}
 
 
-def get_wireless_device():
+def get_wireless_device() -> str:
     for obj_path, _ in nm_obj_manager.get_objects_of_interface(WIFI_INTERFACE):
         return obj_path
+
+    else:
+        raise NoSuchDevice
 
 
 class DevicePoke(ProxyPoke):
     use_session_bus = False
     connection_poke: Optional[ProxyPoke]
     access_point_poke: Optional[ProxyPoke]
+    property_names = ["active_connection", "rx_bytes", "tx_bytes", "interface"]
 
     def __init__(self, ip_interface=None):
 
-        if ip_interface:
-            obj_path = get_device_path_for(ip_interface)
-
-            self.wireless = is_wireless_device(obj_path)
-        else:
-
-            obj_path = get_wireless_device()
-            self.wireless = True
-
-        interfaces = [DEVICE_INTERFACE, DEVICE_STATISTICS_INTERFACE]
-        property_names = ["active_connection", "rx_bytes", "tx_bytes"]
-
-        if self.wireless:
-            interfaces = [
-                DEVICE_INTERFACE,
-                WIRELESS_INTERFACE,
-                DEVICE_STATISTICS_INTERFACE,
-            ]
-            property_names += ["active_access_point"]
+        self.ip_interface = ip_interface
 
         super().__init__(
             service_name=NETWORK_MANAGER_SERVICE_NAME,
-            obj_path=obj_path,
-            interface_names=interfaces,
-            property_names=property_names,
         )
 
         self.connection_poke = None
         self.access_point_poke = None
 
     def register(self):
+        if self.ip_interface:
+            self.obj_path = get_device_path_for(self.ip_interface)
+
+            self.wireless = is_wireless_device(self.obj_path)
+        else:
+            logger.info("No interface given, using the first wireless one we can find")
+            self.obj_path = get_wireless_device()
+            self.wireless = True
+
+        self.interface_names = [DEVICE_INTERFACE, DEVICE_STATISTICS_INTERFACE]
+
+        if self.wireless:
+            self.interface_names += [WIRELESS_INTERFACE]
+            self.property_names += ["active_access_point"]
+
         super().register()
+
+        if self.ip_interface:
+            assert self.ip_interface == self.data["interface"]
+        else:
+            self.ip_interface = self.data["interface"]
+
+        w = "wireless" if self.wireless else "wired"
+
+        logger.info(f"Using {self.ip_interface} as a {w} interface")
+
         self.check_children()
 
     def check_children(self):

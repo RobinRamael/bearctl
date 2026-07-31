@@ -5,6 +5,7 @@ from . import monitor
 from . import mullvad
 from . import music
 from . import network
+from . import sjebbestie
 from . import sway
 from . import systemd
 from . import volume

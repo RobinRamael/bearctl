@@ -13,6 +13,10 @@ from bear.utils import in_debug_mode, to_full_dict
 
 EWW_RELOAD_MATCH = "Reloaded config successfully"
 
+# An `eww update` should return near-instantly; anything slower means the daemon
+# is wedged. Cap it so a bad eww can't freeze the render loop indefinitely.
+EWW_COMMAND_TIMEOUT = 5
+
 logger = logging.getLogger(__name__)
 
 
@@ -155,13 +159,25 @@ class EwwController:
         else:
             command = [self.executable, *args]
 
+        command_str = " ".join(args)
+
         t_0 = time.time()
 
-        subprocess.run(command)
+        # A wedged eww daemon would otherwise block here forever (no timeout),
+        # freezing the entire render loop until eww is restarted by hand.
+        try:
+            subprocess.run(command, timeout=EWW_COMMAND_TIMEOUT)
+        except subprocess.TimeoutExpired:
+            logger.error(
+                "!!! eww command '%s' timed out after %ss -- the eww daemon is "
+                "not responding. Skipping this update; the render loop would "
+                "otherwise hang until eww is restarted.",
+                command_str,
+                EWW_COMMAND_TIMEOUT,
+            )
+            return
 
         t_e = time.time()
-
-        command_str = " ".join(args)
 
         logger.debug(f"Ran eww command '{command_str}' in {t_e - t_0} seconds")
 

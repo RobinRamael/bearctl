@@ -43,7 +43,12 @@ class VolumePoke(Poke):
                 self.pulse.event_mask_set(pulsectl.PulseEventMaskEnum.sink)
                 self.pulse.event_callback_set(_on_event)
                 logger.debug("Listening for events...")
-                self.pulse.event_listen(timeout=None)
+                try:
+                    self.pulse.event_listen(timeout=None)
+                except pulsectl.pulsectl.PulseDisconnected:
+                    logger.info("Pulse disconnected. Are we exiting?")
+                    return
+
                 if not self._event:
                     break
 
@@ -59,7 +64,14 @@ class VolumePoke(Poke):
     def on_event(self, ev):
         logger.debug(f"Received event from pulseaudio: %", ev)
         if ev.t == pulsectl.PulseEventTypeEnum.remove:
-            sink = self.pulse.sink_list()[0]
+            sinks = self.pulse.sink_list()
+            if sinks:
+                sink = self.pulse.sink_list()[0]
+            else:
+                logger.warning("No sinks found, setting volume to 0")
+                self.current_data = {"volume": 0}
+                self.poke()
+                return
         else:
             sink = self.pulse.sink_info(ev.index)
 

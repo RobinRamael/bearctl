@@ -1,15 +1,13 @@
-from abc import abstractmethod
-from typing import Iterable
-from dataclasses import dataclass
-from collections import defaultdict
 import logging
-from operator import attrgetter
-import os
 import os
 import re
-from typing import Optional
+from abc import abstractmethod
+from collections import defaultdict
+from dataclasses import dataclass
+from operator import attrgetter
+from typing import Iterable, Optional
 
-from bear.bear import DebugView, bears, Bear
+from bear.bear import Bear, DebugView, bears
 from bear.eww import EwwJSONView
 from bear.poke import PollingPoke
 
@@ -56,7 +54,7 @@ def read_vm_rss_kb(pid):
                 # don't consume user space memory)
                 return 0
 
-    except FileNotFoundError as e:
+    except (FileNotFoundError, ProcessLookupError) as e:
         raise FailedToGetStat from e
 
 

@@ -116,7 +116,7 @@ class BluetoothAdapterPoke(MultiProxyPoke):
         use_session_bus=False,
     )
 
-    property_names = ["powered", "discovering", "power_state"]
+    property_names = ["powered", "power_state"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -187,9 +187,6 @@ class BluetoothBear(Bear):
                 message = "..."
             elif self.devices.connected_devices:
                 status = "connected"
-            elif self.adapter.data["discovering"]:
-                status = "discovering"
-                message = "scan"
             else:
                 status = "enabled"
 
